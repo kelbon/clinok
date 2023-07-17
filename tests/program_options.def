@@ -1,0 +1,4 @@
+
+tag_option(mytag, "something")
+bool_option(works, "it works", default(false))
+string_option(hello_world, "because, why not", default("hello, man"))
