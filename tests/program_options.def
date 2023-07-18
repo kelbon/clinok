@@ -2,3 +2,13 @@
 tag_option(mytag, "something")
 bool_option(works, "it works", default(false))
 string_option(hello_world, "because, why not", default("hello, man"))
+string_option(myname,
+                     R"(fdsfdsfsddsfsdffdsfsireriteowireowroiewri
+                      feworuiwerioewroieroiwr324032423044023eowur98
+                      weurfiowir3295r823ri02v,3rvm23v,
+                      rwrceri9234rioeeosdfosdiodfiosdf)")
+
+string_option(ABC2, "VERY"
+"LONG\n"
+"DESC FDISF ODF OFDOISE \n",
+default("why"))
