@@ -6,6 +6,7 @@
 
 // GENERATOR OPTIONS:
 
+// TODO .def file prelude
 // There are some options which you can set:
 // * program_options_file - file where options described, "program_options.def" by default
 //
@@ -85,7 +86,7 @@ enum struct errc {
   arg_parsing_error,  // from_cli(string_view, option&) returns 'false'
   invalid_argument,   // argument is presented, but its invalid (not in enum or not bool etc)
 };
-
+// TODO print
 struct error_code {
   errc what = errc::ok;
   context ctx;
@@ -143,9 +144,9 @@ struct options {
 #define DD_CLI
 #define DD_CLIdefault(...) = __VA_ARGS__
 // TODO handle command
-#define tag_option(name, description) bool name = false;
-#define bool_option(name, description, ...) bool name DD_CLI ## __VA_ARGS__;
-#define string_option(name, description, ...) std::string_view name DD_CLI ## __VA_ARGS__;
+#define TAG(name, description) bool name = false;
+#define BOOLEAN(name, description, ...) bool name DD_CLI ## __VA_ARGS__;
+#define STRING(name, description, ...) std::string_view name DD_CLI ## __VA_ARGS__;
 
 #include __FILE__
 
@@ -159,13 +160,13 @@ struct options {
 template <typename...>
 struct typelist {};
 
-#define option(type, name_, description_, ...)                                                             \
+#define OPTION(type, name_, description_, ...)                                                             \
   struct name_##_desc {                                                                                    \
     using value_type = type;                                                                               \
     static constexpr std::string_view name = #name_;                                                       \
     static constexpr std::string_view description = DD_CLI_STR##__VA_ARGS__ description_; \
   };
-#define tag_option(name_, description_)                           \
+#define TAG(name_, description_)                           \
   struct name_##_desc {                                           \
     using value_type = void;                                      \
     static constexpr std::string_view name = #name_;              \
@@ -178,7 +179,7 @@ namespace noexport {
 struct null_option {};
 
 using all_options = typelist<noexport::null_option
-#define option(type, name, ...) , name##_desc
+#define OPTION(type, name, ...) , name##_desc
 #include __FILE__
                              >;
 
@@ -268,12 +269,12 @@ constexpr options parse(args_t args, error_code& ec) noexcept {
   for (auto it = args.begin(); it != args.end(); ++it) {
     std::string_view s = *it;
     // TODO handle all types of options
-#define tag_option(name, ...)              \
+#define TAG(name, ...)              \
   if (s == std::string_view("--" #name)) { \
     o.name = true;                         \
     continue;                              \
   }
-#define string_option(name, ...)                                          \
+#define STRING(name, ...)                                          \
   if (s == std::string_view("--" #name, sizeof(#name) + 1)) {             \
     if (errc ec = try_parse(++it, o.name); ec != errc::ok) [[unlikely]] { \
       set_error_on_pos(it, ec);                                           \
@@ -281,7 +282,7 @@ constexpr options parse(args_t args, error_code& ec) noexcept {
     }                                                                     \
     continue;                                                             \
   }
-#define bool_option(...) string_option(__VA_ARGS__)
+#define BOOLEAN(...) STRING(__VA_ARGS__)
 
 #include __FILE__
   }  // parse loop end
@@ -316,34 +317,31 @@ constexpr options parse(args_t args, error_code& ec) noexcept {
 #else  // DAVID_DINAMIT_CLI_INTERFACE (start of self include part)
 
 // default for all options
-#ifndef option
-#define option(...)
+#ifndef OPTION
+#define OPTION(...)
 #endif
 
 // TODO doc for all here
-#ifndef command
-#define command(...)
+
+#ifndef BOOLEAN
+#define BOOLEAN(...) OPTION(bool, __VA_ARGS__)
 #endif
 
-#ifndef bool_option
-#define bool_option(...) option(bool, __VA_ARGS__)
+#ifndef STRING
+#define STRING(...) OPTION(::std::string_view, __VA_ARGS__)
 #endif
 
-#ifndef string_option
-#define string_option(...) option(::std::string_view, __VA_ARGS__)
-#endif
-
-#ifndef tag_option
-#define tag_option(...) option(void, __VA_ARGS__)
+#ifndef TAG
+#define TAG(...) OPTION(void, __VA_ARGS__)
 #endif
 
 // TODO value_type? some enumof<name>?
-#ifndef enum_option
-#define enum_option(...) option(__VA_ARGS__)
+#ifndef ENUM
+#define ENUM(...) OPTION(__VA_ARGS__)
 #endif
 
-#ifdef path_option
-#define path_option(...) option(::std::filesystem::path, __VA_ARGS__)
+#ifdef PATH
+#define PATH(...) OPTION(::std::filesystem::path, __VA_ARGS__)
 #endif
 
 // file with description of program options, format: TODO link
@@ -353,12 +351,11 @@ constexpr options parse(args_t args, error_code& ec) noexcept {
 
 #include program_options_file
 
-#undef command
-#undef bool_option
-#undef string_option
-#undef tag_option
-#undef enum_option
-#undef path_option
-#undef option
+#undef BOOLEAN
+#undef STRING
+#undef TAG
+#undef ENUM
+#undef PATH
+#undef OPTION
 
 #endif  //  DAVID_DINAMIT_CLI_INTERFACE (end of self include part)
