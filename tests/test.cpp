@@ -2,17 +2,13 @@
 #define store_main_args
 #include "cli_interface.hpp"
 #include <iostream>
-#define program_options_file "../tests/program2_options.def"
-#include "cli_interface.hpp"
 
 int main(int argc, char* argv[]) {
-  cli::my_program_2::options o2;
-  (void)o2.hello_world;
-  cli::mygit::options o;
+  cli::options o;
   if (o.hello_world != "hello, man")
     return -1;
   cli::error_code ec;
-  o = cli::mygit::parse(argc, argv, ec);
+  o = cli::parse(argc, argv, ec);
   if (ec) {
     ec.print_to([](auto x) { std::cerr << x; });
     std::flush(std::cerr);

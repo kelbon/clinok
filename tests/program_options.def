@@ -1,14 +1,12 @@
-PROGRAM(mygit)
 TAG(mytag, "something")
 BOOLEAN(works, "it works", default(false))
 STRING(hello_world, "because, why not", default("hello, man"))
 STRING(myname,
-       R"(fdsfdsfsddsfsdffdsfsireriteowireowroiewri
-                      feworuiwerioewroieroiwr324032423044023eowur98
-                      weurfiowir3295r823ri02v,3rvm23v,
-                      rwrceri9234rioeeosdfosdiodfiosdf)")
+       R"(fdsfdsfsddsfsdffdsfsireriteowireowroiewr)")
 STRING(ABC2,
        "VERY"
-       "LONG\n"
-       "DESC FDISF ODF OFDOISE \n",
+       "mda\n",
        default("why"))
+INTEGER(ab, "integer description", default(15))
+ENUM(abc, "enum description", 1, 2, 3, 4, 5)
+ENUM(str_enum, "enum str description", "hello", "world", "float")
