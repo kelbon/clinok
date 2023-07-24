@@ -51,17 +51,7 @@ struct string_switch {
 
 using arg = const char*;
 
-struct args_t {
-  const arg* first = nullptr;
-  const arg* last = nullptr;
-
-  constexpr const arg* begin() const noexcept {
-    return first;
-  }
-  constexpr const arg* end() const noexcept {
-    return last;
-  }
-};
+using args_t = std::ranges::subrange<const arg*, const arg*>;
 
 // context of current parsing
 struct context {
@@ -82,17 +72,17 @@ enum struct errc {
 constexpr std::string_view to_string(errc e) noexcept {
   switch (e) {
     case errc::arg_parsing_error:
-      return "arg_parsing_error";
+      return "arg parsing error";
     case errc::invalid_argument:
-      return "invalid_argument";
+      return "invalid argument";
     case errc::argument_missing:
-      return "argument_missing";
+      return "argument missing";
     case errc::unknown_option:
-      return "unknown_option";
+      return "unknown option";
     case errc::impossible_enum_value:
-      return "impossible_enum_value";
+      return "impossible enum value";
     case errc::not_a_number:
-      return "not_a_number";
+      return "not a number";
     case errc::ok:
       return "";
   }
@@ -117,8 +107,22 @@ struct error_code {
     if (what == errc::ok)
       return std::move(out);
     out(to_string(what));
-    out(" on position ");
-    out(ctx.position);
+    out(" when parsing option ");
+    out(*std::next(ctx.args.begin(), ctx.position - 1));
+    if (what == errc::impossible_enum_value) {
+      std::string_view nm = *std::next(ctx.args.begin(), ctx.position - 1);
+      if (nm.starts_with("--"))
+        nm.remove_prefix(2);
+      for_each_option([&](auto o) {
+        if constexpr (requires { o.values; }) {
+          if (o.name() == nm) {
+            out(". Possible values are: ");
+            for (auto& x : o.values)
+              out(x), out(' ');
+          }
+        }
+      });
+    }
     // TODO suggest best match? etc? (TODO fint nearest by расстояние левенштейна)
     return std::move(out);
   }
@@ -178,6 +182,10 @@ constexpr errc from_cli(std::string_view raw_arg, bool& b) noexcept {
               .case_("on", true)
               .case_("1", true)
               .case_("ON", true)
+              .case_("YES", true)
+              .case_("yes", true)
+              .case_("no", false)
+              .case_("NO", false)
               .case_("off", false)
               .case_("OFF", false)
               .case_("0", false)
@@ -192,24 +200,27 @@ constexpr errc from_cli(std::string_view raw_arg, bool& b) noexcept {
 #define DD_CLI_STRdefault(...) "default: " #__VA_ARGS__ ", "
 
 #define OPTION(type, name_, description_, ...)                                                         \
-  struct name_ {                                                                                \
+  struct name_ {                                                                                       \
     using value_type = type;                                                                           \
     static consteval ::std::string_view name() { return #name_; }                                      \
     static consteval ::std::string_view description() { return DD_CLI_STR##__VA_ARGS__ description_; } \
+    static constexpr auto& get(auto& x) { return x.name_; }                                            \
   };
 #define TAG(name_, description_)                                               \
-  struct name_ {                                                        \
+  struct name_ {                                                               \
     using value_type = void;                                                   \
     static consteval ::std::string_view name() { return #name_; }              \
     static consteval ::std::string_view description() { return description_; } \
+    static constexpr auto& get(auto& x) { return x.name_; }                    \
   };
 #define ENUM(name_, description_, ...)                                                                       \
-  struct name_ {                                                                                      \
+  struct name_ {                                                                                             \
     static consteval ::std::string_view name() { return #name_; }                                            \
-    static consteval ::std::string_view description() { return "one of: [" #__VA_ARGS__ "] " description_; }  \
+    static consteval ::std::string_view description() { return "one of: [" #__VA_ARGS__ "] " description_; } \
     static constexpr auto values = ::std::to_array({__VA_ARGS__});                                           \
     using value_type = std::conditional_t<std::is_integral_v<decltype((__VA_ARGS__))>, ::std::int_least64_t, \
                                           ::std::string_view>;                                               \
+    static constexpr auto& get(auto& x) { return x.name_; }                                                  \
   };
 
 #include __FILE__
@@ -293,14 +304,13 @@ inline Out print_help_message_to(Out out) noexcept {
 constexpr options parse(args_t args, error_code& ec) noexcept {
   options o;
   auto set_error_on_pos = [&](auto it, errc what) {
-    ec.set_error(what, context{args_t{it, args.end()}, (size_t)std::distance(args.begin(), it)});
+    ec.set_error(what, context{args, (size_t)std::distance(args.begin(), it)});
   };
   auto try_parse = [&](auto it, auto& option_value) -> errc {
     if (it == args.end())
       return errc::argument_missing;
     return from_cli(std::string_view(*it), option_value);
   };
-
   // parse loop begin
   for (auto it = args.begin(); it != args.end(); ++it) {
     std::string_view s = *it;
@@ -309,34 +319,34 @@ constexpr options parse(args_t args, error_code& ec) noexcept {
     o.name = true;                         \
     continue;                              \
   }
-#define STRING(name, ...)                                                 \
-  if (s == std::string_view("--" #name, sizeof(#name) + 1)) {             \
-    if (errc ec = try_parse(++it, o.name); ec != errc::ok) { \
-      set_error_on_pos(it, ec);                                           \
-      return o;                                                           \
-    }                                                                     \
-    continue;                                                             \
+#define STRING(name, ...)                                     \
+  if (s == std::string_view("--" #name, sizeof(#name) + 1)) { \
+    if (errc ec = try_parse(++it, o.name); ec != errc::ok) {  \
+      set_error_on_pos(it, ec);                               \
+      return o;                                               \
+    }                                                         \
+    continue;                                                 \
   }
-#define ENUM(name, ...)                                                                \
-  if (s == std::string_view("--" #name, sizeof(#name) + 1)) {                          \
-    if (errc ec = try_parse(++it, o.name); ec != errc::ok) {              \
-      set_error_on_pos(it, ec);                                                        \
-      return o;                                                                        \
-    }                                                                                  \
-    constexpr auto values = name ::values;                                      \
-    if (std::find(std::begin(values), std::end(values), o.name) == std::end(values)) { \
-      set_error_on_pos(it, errc::impossible_enum_value);                               \
-      return o;                                                                        \
-    }                                                                                  \
-    continue;                                                                          \
+#define ENUM(name, ...)                                                 \
+  if (s == std::string_view("--" #name, sizeof(#name) + 1)) {           \
+    if (errc ec = try_parse(++it, o.name); ec != errc::ok) {            \
+      set_error_on_pos(it, ec);                                         \
+      return o;                                                         \
+    }                                                                   \
+    constexpr auto& values = name ::values;                             \
+    if (std::find(begin(values), end(values), o.name) == end(values)) { \
+      set_error_on_pos(it, errc::impossible_enum_value);                \
+      return o;                                                         \
+    }                                                                   \
+    continue;                                                           \
   }
-#define INTEGER(name, ...)                                                \
-  if (s == std::string_view("--" #name, sizeof(#name) + 1)) {             \
-    if (errc ec = try_parse(++it, o.name); ec != errc::ok) [[unlikely]] { \
-      set_error_on_pos(it, ec);                                           \
-      return o;                                                           \
-    }                                                                     \
-    continue;                                                             \
+#define INTEGER(name, ...)                                    \
+  if (s == std::string_view("--" #name, sizeof(#name) + 1)) { \
+    if (errc ec = try_parse(++it, o.name); ec != errc::ok) {  \
+      set_error_on_pos(it, ec);                               \
+      return o;                                               \
+    }                                                         \
+    continue;                                                 \
   }
 #define BOOLEAN(...) STRING(__VA_ARGS__)
 #include __FILE__
