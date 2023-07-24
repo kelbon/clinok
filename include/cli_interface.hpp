@@ -184,11 +184,13 @@ constexpr errc from_cli(std::string_view raw_arg, bool& b) noexcept {
               .case_("ON", true)
               .case_("YES", true)
               .case_("yes", true)
+              .case_("true", true)
               .case_("no", false)
               .case_("NO", false)
               .case_("off", false)
               .case_("OFF", false)
               .case_("0", false)
+              .case_("false", false)
               .default_(2);
   if (i == 2)
     return errc::invalid_argument;
@@ -235,20 +237,6 @@ using all_options = typelist<::cli::noexport::null_option
 
 }  // namespace noexport
 
-struct options {
-#define DD_CLI
-#define DD_CLIdefault(...) = __VA_ARGS__
-#define TAG(name, description) bool name = false;
-#define BOOLEAN(name, description, ...) bool name DD_CLI##__VA_ARGS__;
-#define STRING(name, description, ...) ::std::string_view name DD_CLI##__VA_ARGS__;
-#define ENUM(name, description, ...) name ::value_type name = name ::values[0];
-#define INTEGER(name, description, ...) ::std::int_least64_t name DD_CLI##__VA_ARGS__;
-
-#include __FILE__
-
-#undef DD_CLI
-#undef DD_CLIdefault
-};
 // passes empty option description object to 'foo'
 constexpr void for_each_option(auto foo) {
   [&]<typename... Options>(typelist<::cli::noexport::null_option, Options...>) {
@@ -262,6 +250,33 @@ constexpr decltype(auto) apply_to_options(auto foo) {
     return foo(Options{}...);
   }(noexport::all_options{});
 }
+
+struct options {
+#define DD_CLI
+#define DD_CLIdefault(...) = __VA_ARGS__
+#define TAG(name, description) bool name = false;
+#define BOOLEAN(name, description, ...) bool name DD_CLI##__VA_ARGS__;
+#define STRING(name, description, ...) ::std::string_view name DD_CLI##__VA_ARGS__;
+#define ENUM(name, description, ...) name ::value_type name = name ::values[0];
+#define INTEGER(name, description, ...) ::std::int_least64_t name DD_CLI##__VA_ARGS__;
+
+#include __FILE__
+
+#undef DD_CLI
+#undef DD_CLIdefault
+
+  constexpr auto print_to(auto out) {
+    for_each_option([&](auto opts) {
+      out(opts.name()), out(" = ");
+      constexpr bool int_like = requires { opts.get(*this) == 42; };
+      int_like ? void() : (void)out('\"');
+      out(opts.get(*this));
+      int_like ? void() : (void)out('\"');
+      out('\n');
+    });
+    return std::move(out);
+  }
+};
 
 consteval bool has_option(std::string_view name) {
   return apply_to_options([&](auto... opts) { return ((opts.name() == name) || ...); });
@@ -293,6 +308,9 @@ inline Out print_help_message_to(Out out) noexcept {
       out(' ');
     out(o.description()), out('\n');
   });
+  #define ALIAS(a, b) out(" -"), out(#a), out(" is an alias to "), out(#b), out('\n');
+  #define OPTION(...)
+  #include __FILE__
   return ::std::move(out);
 }
 
@@ -301,6 +319,7 @@ inline Out print_help_message_to(Out out) noexcept {
 
 // if option if to save program name, then this function not thread safe in theory, but rly.. dont call it
 // multithread))
+// TODO default handler, TODO merge-parsing with options&
 constexpr options parse(args_t args, error_code& ec) noexcept {
   options o;
   auto set_error_on_pos = [&](auto it, errc what) {
@@ -311,24 +330,41 @@ constexpr options parse(args_t args, error_code& ec) noexcept {
       return errc::argument_missing;
     return from_cli(std::string_view(*it), option_value);
   };
-  // parse loop begin
   for (auto it = args.begin(); it != args.end(); ++it) {
     std::string_view s = *it;
-#define TAG(name, ...)                     \
-  if (s == std::string_view("--" #name)) { \
-    o.name = true;                         \
-    continue;                              \
+    if (s.starts_with("--")) {
+      s.remove_prefix(2);
+    } else if (s.starts_with('-') && s.size() > 1) {
+      s.remove_prefix(1);
+      constexpr auto aliases = std::to_array({
+#define ALIAS(a, b) std::pair<std::string_view, std::string_view>{#a, #b},
+#define OPTION(...)
+#include __FILE__
+      });
+      if (auto it2 =
+              std::find_if(std::begin(aliases), std::end(aliases), [&](auto& x) { return x.first == s; });
+          it2 != std::end(aliases)) {
+        s = it2->second;
+      } else {
+        set_error_on_pos(it, errc::unknown_option);
+        return o;
+      }
+    }
+#define TAG(name, ...)                \
+  if (s == std::string_view(#name)) { \
+    o.name = true;                    \
+    continue;                         \
   }
-#define STRING(name, ...)                                     \
-  if (s == std::string_view("--" #name, sizeof(#name) + 1)) { \
-    if (errc ec = try_parse(++it, o.name); ec != errc::ok) {  \
-      set_error_on_pos(it, ec);                               \
-      return o;                                               \
-    }                                                         \
-    continue;                                                 \
+#define STRING(name, ...)                                    \
+  if (s == std::string_view(#name)) {                        \
+    if (errc ec = try_parse(++it, o.name); ec != errc::ok) { \
+      set_error_on_pos(it, ec);                              \
+      return o;                                              \
+    }                                                        \
+    continue;                                                \
   }
 #define ENUM(name, ...)                                                 \
-  if (s == std::string_view("--" #name, sizeof(#name) + 1)) {           \
+  if (s == std::string_view(#name)) {                                   \
     if (errc ec = try_parse(++it, o.name); ec != errc::ok) {            \
       set_error_on_pos(it, ec);                                         \
       return o;                                                         \
@@ -340,13 +376,13 @@ constexpr options parse(args_t args, error_code& ec) noexcept {
     }                                                                   \
     continue;                                                           \
   }
-#define INTEGER(name, ...)                                    \
-  if (s == std::string_view("--" #name, sizeof(#name) + 1)) { \
-    if (errc ec = try_parse(++it, o.name); ec != errc::ok) {  \
-      set_error_on_pos(it, ec);                               \
-      return o;                                               \
-    }                                                         \
-    continue;                                                 \
+#define INTEGER(name, ...)                                   \
+  if (s == std::string_view(#name)) {                        \
+    if (errc ec = try_parse(++it, o.name); ec != errc::ok) { \
+      set_error_on_pos(it, ec);                              \
+      return o;                                              \
+    }                                                        \
+    continue;                                                \
   }
 #define BOOLEAN(...) STRING(__VA_ARGS__)
 #include __FILE__
@@ -382,6 +418,7 @@ inline options parse_or_exit(int argc, char* argv[]) {
   }
   return o;
 }
+
 }  // namespace cli
 
 #undef program_options_file
@@ -408,13 +445,16 @@ inline options parse_or_exit(int argc, char* argv[]) {
 #define TAG(...) OPTION(void, __VA_ARGS__)
 #endif
 
-// TODO value_type? some enumof<name>?
 #ifndef INTEGER
 #define INTEGER(...) OPTION(::std::int_least64_t, __VA_ARGS__)
 #endif
 
-#ifdef PATH
+#ifndef PATH
 #define PATH(...) OPTION(::std::filesystem::path, __VA_ARGS__)
+#endif
+
+#ifndef ALIAS
+#define ALIAS(a, b)
 #endif
 
 // file with description of program options, format: TODO link
@@ -432,5 +472,6 @@ TAG(help, "list of all options")
 #undef PATH
 #undef OPTION
 #undef INTEGER
+#undef ALIAS
 
 #endif  // DAVID_DINAMIT_CLI_INTERFACE (end of self include part)
