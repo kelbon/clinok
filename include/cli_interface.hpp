@@ -86,6 +86,7 @@ constexpr std::string_view to_string(errc e) noexcept {
     case errc::not_a_number:
       return "not a number";
     case errc::ok:
+    default:
       return "";
   }
 }
