@@ -1,6 +1,7 @@
 #define program_options_file "../tests/program_options.def"
 #define store_main_args
-#include "cli_interface.hpp"
+
+#include <cli_interface.hpp>
 #include <iostream>
 
 int main(int argc, char* argv[]) {

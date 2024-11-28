@@ -1,0 +1,28 @@
+name: Windows CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      - name: Configure project with CMake
+        run: |
+          cmake . -B build
+
+      - name: Build project
+        run: |
+          cmake --build build
+
+      - name: Run tests
+        run: |
+          cd build
+          ctest -C Debug --output-on-failure -V

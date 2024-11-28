@@ -7,6 +7,8 @@
 #ifndef DAVID_DINAMIT_CLI_INTERFACE
 #define DAVID_DINAMIT_CLI_INTERFACE
 
+#include <cstring>
+#include <span>
 #include <string_view>
 #include <optional>
 #include <type_traits>
@@ -51,7 +53,7 @@ struct string_switch {
 
 using arg = const char*;
 
-using args_t = std::ranges::subrange<const arg*, const arg*>;
+using args_t = std::span<const arg>;
 
 // context of current parsing
 struct context {
@@ -84,6 +86,7 @@ constexpr std::string_view to_string(errc e) noexcept {
     case errc::not_a_number:
       return "not a number";
     case errc::ok:
+    default:
       return "";
   }
 }
@@ -132,7 +135,7 @@ constexpr inline args_t args_range(int argc, const arg* argv) noexcept {
   assert(argc >= 0);
   if (argc == 0)
     return args_t{};
-  return args_t{argv + 1, argv + argc};
+  return args_t(argv + 1, argv + argc);
 }
 
 namespace noexport {
@@ -167,17 +170,17 @@ namespace noexport {
 struct null_option {};
 }  // namespace noexport
 
-constexpr errc from_cli(std::string_view raw_arg, std::string_view& s) noexcept {
+errc from_cli(std::string_view raw_arg, std::string_view& s) noexcept {
   s = raw_arg;
   return errc::ok;
 }
-constexpr errc from_cli(std::string_view raw_arg, std::int_least64_t& s) noexcept {
+errc from_cli(std::string_view raw_arg, std::int_least64_t& s) noexcept {
   auto [_, ec] = std::from_chars(raw_arg.data(), raw_arg.data() + raw_arg.size(), s);
   if (ec != std::errc{})
     return errc::not_a_number;
   return errc::ok;
 }
-constexpr errc from_cli(std::string_view raw_arg, bool& b) noexcept {
+errc from_cli(std::string_view raw_arg, bool& b) noexcept {
   int i = string_switch<int>(raw_arg)
               .case_("on", true)
               .case_("1", true)
@@ -201,28 +204,46 @@ constexpr errc from_cli(std::string_view raw_arg, bool& b) noexcept {
 #define DD_CLI_STR
 #define DD_CLI_STRdefault(...) "default: " #__VA_ARGS__ ", "
 
-#define OPTION(type, name_, description_, ...)                                                         \
-  struct name_ {                                                                                       \
-    using value_type = type;                                                                           \
-    static consteval ::std::string_view name() { return #name_; }                                      \
-    static consteval ::std::string_view description() { return DD_CLI_STR##__VA_ARGS__ description_; } \
-    static constexpr auto& get(auto& x) { return x.name_; }                                            \
+#define OPTION(type, NAME, description_, ...)           \
+  struct NAME##_o {                                     \
+    using value_type = type;                            \
+    static consteval ::std::string_view name() {        \
+      return #NAME;                                     \
+    }                                                   \
+    static consteval ::std::string_view description() { \
+      return DD_CLI_STR##__VA_ARGS__ description_;      \
+    }                                                   \
+    static constexpr auto& get(auto& x) {               \
+      return x.NAME;                                    \
+    }                                                   \
   };
-#define TAG(name_, description_)                                               \
-  struct name_ {                                                               \
-    using value_type = void;                                                   \
-    static consteval ::std::string_view name() { return #name_; }              \
-    static consteval ::std::string_view description() { return description_; } \
-    static constexpr auto& get(auto& x) { return x.name_; }                    \
+#define TAG(NAME, description_)                         \
+  struct NAME##_o {                                     \
+    using value_type = void;                            \
+    static consteval ::std::string_view name() {        \
+      return #NAME;                                     \
+    }                                                   \
+    static consteval ::std::string_view description() { \
+      return description_;                              \
+    }                                                   \
+    static constexpr auto& get(auto& x) {               \
+      return x.NAME;                                    \
+    }                                                   \
   };
-#define ENUM(name_, description_, ...)                                                                       \
-  struct name_ {                                                                                             \
-    static consteval ::std::string_view name() { return #name_; }                                            \
-    static consteval ::std::string_view description() { return "one of: [" #__VA_ARGS__ "] " description_; } \
+#define ENUM(NAME, description_, ...)                                                                        \
+  struct NAME##_o {                                                                                          \
+    static consteval ::std::string_view name() {                                                             \
+      return #NAME;                                                                                          \
+    }                                                                                                        \
+    static consteval ::std::string_view description() {                                                      \
+      return "one of: [" #__VA_ARGS__ "] " description_;                                                     \
+    }                                                                                                        \
     static constexpr auto values = ::std::to_array({__VA_ARGS__});                                           \
     using value_type = std::conditional_t<std::is_integral_v<decltype((__VA_ARGS__))>, ::std::int_least64_t, \
                                           ::std::string_view>;                                               \
-    static constexpr auto& get(auto& x) { return x.name_; }                                                  \
+    static constexpr auto& get(auto& x) {                                                                    \
+      return x.NAME;                                                                                         \
+    }                                                                                                        \
   };
 
 #include __FILE__
@@ -230,8 +251,8 @@ constexpr errc from_cli(std::string_view raw_arg, bool& b) noexcept {
 namespace noexport {
 
 using all_options = typelist<::cli::noexport::null_option
-#define OPTION(type, name, ...) , name
-#define ENUM(name, ...) , name
+#define OPTION(type, name, ...) , name##_o
+#define ENUM(name, ...) , name##_o
 #include __FILE__
                              >;
 
@@ -257,7 +278,7 @@ struct options {
 #define TAG(name, description) bool name = false;
 #define BOOLEAN(name, description, ...) bool name DD_CLI##__VA_ARGS__;
 #define STRING(name, description, ...) ::std::string_view name DD_CLI##__VA_ARGS__;
-#define ENUM(name, description, ...) name ::value_type name = name ::values[0];
+#define ENUM(name, description, ...) name##_o ::value_type name = name##_o ::values[0];
 #define INTEGER(name, description, ...) ::std::int_least64_t name DD_CLI##__VA_ARGS__;
 
 #include __FILE__
@@ -298,9 +319,8 @@ inline Out print_help_message_to(Out out) noexcept {
   auto option_string_len = [&](auto o) -> size_t {
     return sizeof("--") + o.name().size() + ::std::strlen(option_arg_str(o));
   };
-  ::std::size_t largest_help_string = apply_to_options([&](auto... opts) {
-    return ::std::max({size_t(0), option_string_len(opts)...});
-  });
+  ::std::size_t largest_help_string =
+      apply_to_options([&](auto... opts) { return ::std::max({size_t(0), option_string_len(opts)...}); });
   for_each_option([&](auto o) {
     out(" --"), out(o.name()), out(' '), out(option_arg_str(o));
     const int whitespace_count = 2 + largest_help_string - option_string_len(o);
@@ -308,9 +328,9 @@ inline Out print_help_message_to(Out out) noexcept {
       out(' ');
     out(o.description()), out('\n');
   });
-  #define ALIAS(a, b) out(" -"), out(#a), out(" is an alias to "), out(#b), out('\n');
-  #define OPTION(...)
-  #include __FILE__
+#define ALIAS(a, b) out(" -"), out(#a), out(" is an alias to "), out(#b), out('\n');
+#define OPTION(...)
+#include __FILE__
   return ::std::move(out);
 }
 
@@ -369,7 +389,7 @@ constexpr options parse(args_t args, error_code& ec) noexcept {
       set_error_on_pos(it, ec);                                         \
       return o;                                                         \
     }                                                                   \
-    constexpr auto& values = name ::values;                             \
+    constexpr auto& values = name##_o ::values;                         \
     if (std::find(begin(values), end(values), o.name) == end(values)) { \
       set_error_on_pos(it, errc::impossible_enum_value);                \
       return o;                                                         \
