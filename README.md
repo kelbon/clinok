@@ -61,7 +61,7 @@ program_options.def file:
 
 // default value is "black", possible values "black", "green", "red", "blue"
 STRING_ENUM(color, "text color", black, green, red, blue)
-INTEGER(count, "count of lines", default(1))
+INTEGER(count, "count of lines", default(2))
 
 ALIAS(h, help)
 ALIAS(c, color)
@@ -93,7 +93,7 @@ Output:
 >name.exe --help
 
  --color <string>  one of: ["black" "green", "red", "blue"] text color
- --count <int>     default: 1, count of lines
+ --count <int>     default: 2, count of lines
  --help            list of all options
  -h is an alias to help
  -c is an alias to color
