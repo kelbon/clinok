@@ -97,6 +97,25 @@ int main() {
           "--abc",
           "1",
       },
+      clinok::errc::required_option_not_present, "required option myint2 is missing\n");
+  test_parse(
+      {
+          "program_name_placeholder",
+          "--abc",
+          "1",
+          "--myint2",
+          "1",
+      },
+      clinok::errc::ok, "");
+  // with alias
+  test_parse(
+      {
+          "program_name_placeholder",
+          "--abc",
+          "1",
+          "-i",
+          "1",
+      },
       clinok::errc::ok, "");
 
   // with alias 'hh' to 'abc'
@@ -117,6 +136,8 @@ int main() {
   test_parse(
       {
           "program_name_placeholder",
+          "--myint2",
+          "1",
           "-hh",
           "1",
       },
@@ -124,7 +145,10 @@ int main() {
 
   cli1::options o1;
   // should compile
-  use(o1.mytag, o1.works, o1.hello_world, o1.myname, o1.ABC2, o1.abc, o1.str_enum);
+  use(o1.mytag, o1.works, o1.hello_world, o1.myname, o1.ABC2, o1.abc, o1.str_enum, o1.myint, o1.myint2);
+  // default values
+  error_if(o1.myint != 17 || o1.myint2 != 0 || o1.str_enum != "hello" || o1.abc != 1 || o1.ABC2 != "why" ||
+           o1.myname != "" || o1.hello_world != "hello, man" || o1.works != false || o1.mytag != false);
   cli2::options o2;
   use(o2.mytag, o2.works, o2.hello_world, o2.myname, o2.ABC2, o2.str_enum);
 }

@@ -53,7 +53,8 @@ enum struct errc {
   invalid_argument,   // argument is presented, but its invalid (not in enum or not bool etc)
   unknown_option,     // unknown option parsed
   impossible_enum_value,
-  not_a_number  // parse int argument impossible
+  not_a_number,                 // parse int argument impossible
+  required_option_not_present,  // option without default value not present in arguments
 };
 
 std::string_view errc2str(errc) noexcept;

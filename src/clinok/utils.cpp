@@ -188,10 +188,12 @@ std::string_view errc2str(errc e) noexcept {
       return "impossible enum value";
     case errc::not_a_number:
       return "not a number";
+    case errc::required_option_not_present:
+      return "required option not present";
     case errc::ok:
-    default:
-      return "";
+      return "ok";
   }
+  return "";
 }
 
 }  // namespace clinok

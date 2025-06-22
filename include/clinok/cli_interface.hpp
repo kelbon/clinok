@@ -32,18 +32,21 @@ using namespace ::clinok;
 #define DD_CLI_STR
 #define DD_CLI_STRdefault(...) "default: " #__VA_ARGS__ ", "
 
-#define OPTION(type, NAME, description_, ...)         \
-  struct NAME##_o {                                   \
-    using value_type = type;                          \
-    static consteval std::string_view name() {        \
-      return #NAME;                                   \
-    }                                                 \
-    static consteval std::string_view description() { \
-      return DD_CLI_STR##__VA_ARGS__ description_;    \
-    }                                                 \
-    static constexpr auto& get(auto& x) {             \
-      return x.NAME;                                  \
-    }                                                 \
+#define OPTION(type, NAME, description_, ...)                       \
+  struct NAME##_o {                                                 \
+    using value_type = type;                                        \
+    static consteval std::string_view name() {                      \
+      return #NAME;                                                 \
+    }                                                               \
+    static consteval std::string_view description() {               \
+      return DD_CLI_STR##__VA_ARGS__ description_;                  \
+    }                                                               \
+    static constexpr auto& get(auto& x) {                           \
+      return x.NAME;                                                \
+    }                                                               \
+    static consteval bool has_default() noexcept {                  \
+      return std::string_view(#__VA_ARGS__).starts_with("default"); \
+    }                                                               \
   };
 #define TAG(NAME, description_)                       \
   struct NAME##_o {                                   \
@@ -56,6 +59,9 @@ using namespace ::clinok;
     }                                                 \
     static constexpr auto& get(auto& x) {             \
       return x.NAME;                                  \
+    }                                                 \
+    static constexpr bool has_default() noexcept {    \
+      return true;                                    \
     }                                                 \
   };
 #define ENUM(NAME, description_, ...)                                                                      \
@@ -71,6 +77,9 @@ using namespace ::clinok;
                                           std::string_view>;                                               \
     static constexpr auto& get(auto& x) {                                                                  \
       return x.NAME;                                                                                       \
+    }                                                                                                      \
+    static constexpr bool has_default() noexcept {                                                         \
+      return true;                                                                                         \
     }                                                                                                      \
   };
 
@@ -102,7 +111,10 @@ constexpr decltype(auto) apply_to_options(auto foo) {
 }
 
 struct options {
-#define DD_CLI
+  // zero initialization if no default here, but 'parse' should return error if no value provided for option
+  // without default value
+
+#define DD_CLI = {}
 #define DD_CLIdefault(...) = __VA_ARGS__
 #define TAG(name, description) bool name = false;
 #define BOOLEAN(name, description, ...) bool name DD_CLI##__VA_ARGS__;
@@ -116,16 +128,27 @@ struct options {
 #undef DD_CLIdefault
 
   constexpr auto print_to(auto out) {
-    for_each_option([&](auto opts) {
-      out(opts.name()), out(" = ");
-      constexpr bool int_like = requires { opts.get(*this) == 42; };
+    for_each_option([&](auto o) {
+      out(o.name()), out(" = ");
+      constexpr bool int_like = requires { o.get(*this) == 42; };
       int_like ? void() : (void)out('\"');
-      out(opts.get(*this));
+      out(o.get(*this));
       int_like ? void() : (void)out('\"');
       out('\n');
     });
     return std::move(out);
   }
+};
+
+// contains 'bool' fields for checking if option present during parse
+struct presented_options {
+  // zero initialization if no default here, but 'parse' should return error if no value provided for option
+  // without default value
+
+#define OPTION(type, name, ...) bool name = false;
+#define ENUM(name, ...) bool name = false;
+
+#include <clinok/generate.hpp>
 };
 
 consteval bool has_option(std::string_view name) {
@@ -169,7 +192,9 @@ inline Out print_help_message_to(Out out) noexcept {
 // assumes first arg as program name
 constexpr options parse(args_t args, error_code& ec) noexcept {
   options o;
-  auto set_error_on_pos = [&](std::string_view typed, errc what, std::string_view resolved) {
+  presented_options po;
+
+  auto set_error = [&](std::string_view typed, errc what, std::string_view resolved) {
     ec.set_error(what, context{std::string(typed), std::string(resolved)});
   };
   auto try_parse = [&](auto it, auto& option_value) -> errc {
@@ -196,44 +221,54 @@ constexpr options parse(args_t args, error_code& ec) noexcept {
           it2 != std::end(aliases)) {
         s = it2->second;
       } else {
-        set_error_on_pos(typed, errc::unknown_option, std::string(s));
+        set_error(typed, errc::unknown_option, std::string(s));
         return o;
       }
     }
 #define TAG(name, ...)                \
   if (s == std::string_view(#name)) { \
     o.name = true;                    \
+    po.name = true;                   \
     continue;                         \
   }
 #define STRING(name, ...)                                    \
   if (s == std::string_view(#name)) {                        \
+    po.name = true;                                          \
     if (errc ec = try_parse(++it, o.name); ec != errc::ok) { \
-      set_error_on_pos(typed, ec, std::string(s));           \
+      set_error(typed, ec, std::string(s));                  \
       return o;                                              \
     }                                                        \
     continue;                                                \
   }
-#define ENUM(name, ...)                                                     \
-  if (s == std::string_view(#name)) {                                       \
-    if (errc ec = try_parse(++it, o.name); ec != errc::ok) {                \
-      set_error_on_pos(typed, ec, std::string(s));                          \
-      return o;                                                             \
-    }                                                                       \
-    constexpr auto& values = name##_o ::values;                             \
-    if (std::find(begin(values), end(values), o.name) == end(values)) {     \
-      set_error_on_pos(typed, errc::impossible_enum_value, std::string(s)); \
-      return o;                                                             \
-    }                                                                       \
-    continue;                                                               \
+#define ENUM(name, ...)                                                 \
+  if (s == std::string_view(#name)) {                                   \
+    po.name = true;                                                     \
+    if (errc ec = try_parse(++it, o.name); ec != errc::ok) {            \
+      set_error(typed, ec, std::string(s));                             \
+      return o;                                                         \
+    }                                                                   \
+    constexpr auto& values = name##_o ::values;                         \
+    if (std::find(begin(values), end(values), o.name) == end(values)) { \
+      set_error(typed, errc::impossible_enum_value, std::string(s));    \
+      return o;                                                         \
+    }                                                                   \
+    continue;                                                           \
   }
 #define INTEGER(...) STRING(__VA_ARGS__)
 #define BOOLEAN(...) STRING(__VA_ARGS__)
 #include <clinok/generate.hpp>
 
     // if 'continue' not reached
-    set_error_on_pos(typed, errc::unknown_option, std::string(s));
+    set_error(typed, errc::unknown_option, std::string(s));
     return o;
   }  // parse loop end
+
+  for_each_option([&](auto o) {
+    // is required and not present in arg list
+    if (!o.has_default() && !o.get(po)) {
+      set_error(o.name(), errc::required_option_not_present, o.name());
+    }
+  });
   return o;
 }
 
@@ -253,6 +288,13 @@ template <typename Out>
 constexpr Out print_err_to(const error_code& err, Out out) {
   if (err.what == errc::ok)
     return std::move(out);
+  if (err.what == errc::required_option_not_present) {
+    out("required option ");
+    // its not from arguments, 'parse' should set it to correct missing option
+    out(err.ctx.resolved_name);
+    out(" is missing\n");
+    return std::move(out);
+  }
   out(errc2str(err.what));
   if (err.what != errc::unknown_option)  // for better error message
     out(" when parsing ");
@@ -300,6 +342,10 @@ constexpr Out print_err_to(const error_code& err, Out out) {
   return std::move(out);
 }
 
+void print_err(const error_code& err, std::ostream& out = std::cerr) {
+  print_err_to(err, [&](auto&& x) { out << x; });
+}
+
 // assumes first arg as program name
 // parses args, dumps error and terminates program if error occured
 inline options parse_or_exit(int argc, char* argv[]) {
@@ -307,7 +353,7 @@ inline options parse_or_exit(int argc, char* argv[]) {
   options o = parse(argc, argv, ec);
   if (ec) {
     std::cerr << '\n';
-    print_err_to(ec, [](auto s) { std::cerr << s; });
+    print_err(ec);
     std::endl(std::cerr);
     std::exit(1);
   }
