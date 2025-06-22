@@ -3,7 +3,8 @@ name: Windows CI
 on:
   pull_request:
   push:
-    branches: [ $default-branch ]
+    branches:
+      - master
 
 jobs:
   build:
