@@ -20,7 +20,6 @@
 #include <iterator>
 #include <iostream>
 #include <type_traits>
-#include <ranges>
 #include <vector>
 #include <span>
 #include <string_view>
@@ -34,45 +33,48 @@ using namespace ::clinok;
 #define DD_CLI_STR
 #define DD_CLI_STRdefault(...) "default: " #__VA_ARGS__ ", "
 
-#define OPTION(type, NAME, description_, ...)                       \
-  struct NAME##_o {                                                 \
-    using value_type = type;                                        \
-    static consteval std::string_view name() {                      \
-      return #NAME;                                                 \
-    }                                                               \
-    static consteval std::string_view description() {               \
-      return DD_CLI_STR##__VA_ARGS__ description_;                  \
-    }                                                               \
-    static constexpr auto& get(auto& x) {                           \
-      return x.NAME;                                                \
-    }                                                               \
-    static consteval bool has_default() noexcept {                  \
-      return std::string_view(#__VA_ARGS__).starts_with("default"); \
-    }                                                               \
+#define OPTION(TYPE, NAME, DESCRIPTION, ...)                             \
+  struct NAME##_o {                                                      \
+    using value_type = TYPE;                                             \
+    static consteval std::string_view name() {                           \
+      return #NAME;                                                      \
+    }                                                                    \
+    static consteval std::string_view description() {                    \
+      (void)"" DESCRIPTION; /*validate description is a string literal*/ \
+      return DD_CLI_STR##__VA_ARGS__ DESCRIPTION;                        \
+    }                                                                    \
+    static constexpr auto& get(auto& x) {                                \
+      return x.NAME;                                                     \
+    }                                                                    \
+    static consteval bool has_default() noexcept {                       \
+      return std::string_view(#__VA_ARGS__).starts_with("default");      \
+    }                                                                    \
   };
-#define TAG(NAME, description_)                       \
-  struct NAME##_o {                                   \
-    using value_type = void;                          \
-    static consteval std::string_view name() {        \
-      return #NAME;                                   \
-    }                                                 \
-    static consteval std::string_view description() { \
-      return description_;                            \
-    }                                                 \
-    static constexpr auto& get(auto& x) {             \
-      return x.NAME;                                  \
-    }                                                 \
-    static constexpr bool has_default() noexcept {    \
-      return true;                                    \
-    }                                                 \
+#define TAG(NAME, DESCRIPTION)                                           \
+  struct NAME##_o {                                                      \
+    using value_type = void;                                             \
+    static consteval std::string_view name() {                           \
+      return #NAME;                                                      \
+    }                                                                    \
+    static consteval std::string_view description() {                    \
+      (void)"" DESCRIPTION; /*validate description is a string literal*/ \
+      return DESCRIPTION;                                                \
+    }                                                                    \
+    static constexpr auto& get(auto& x) {                                \
+      return x.NAME;                                                     \
+    }                                                                    \
+    static constexpr bool has_default() noexcept {                       \
+      return true;                                                       \
+    }                                                                    \
   };
-#define ENUM(NAME, description_, ...)                                                                      \
+#define ENUM(NAME, DESCRIPTION, ...)                                                                       \
   struct NAME##_o {                                                                                        \
     static consteval std::string_view name() {                                                             \
       return #NAME;                                                                                        \
     }                                                                                                      \
     static consteval std::string_view description() {                                                      \
-      return "one of: [" #__VA_ARGS__ "] " description_;                                                   \
+      (void)"" DESCRIPTION; /*validate description is a string literal*/                                   \
+      return "one of: [" #__VA_ARGS__ "] " DESCRIPTION;                                                    \
     }                                                                                                      \
     static constexpr auto values = std::to_array({__VA_ARGS__});                                           \
     using value_type = std::conditional_t<std::is_integral_v<decltype((__VA_ARGS__))>, std::int_least64_t, \
@@ -85,58 +87,29 @@ using namespace ::clinok;
     }                                                                                                      \
   };
 
-namespace noexport {
-
-consteval std::size_t count_tokens(std::string_view values) {
-  if (std::ranges::count(values, '=') > 1) {
-    throw "Incorrect STRING_ENUM";
-  }
-  if (values.empty()) {
-    throw "Incorrect STRING_ENUM without values";
-  }
-  return std::ranges::count(values, ',') + 1;
-}
-
-template <std::size_t N>
-consteval std::array<std::string_view, N> split_tokens(std::string_view values) {
-  std::array<std::string_view, N> result{};
-  if (count_tokens(values) != N) {
-    throw "Something got wrong";
-  }
-  std::size_t i = 0;
-  for (auto subview : std::views::split(values, ',')) {
-    std::string_view token(&*subview.begin(), std::ranges::distance(subview));
-    token.remove_prefix(token.find_first_not_of(" \t\n"));
-    token.remove_suffix(token.size() - token.find_last_not_of(" \t\n") - 1);
-    result[i++] = token;
-  }
-  return result;
-}
-
-}  // namespace noexport
-
-#define STRING_ENUM(NAME, description_, ...)                                   \
-  enum struct NAME##_e{__VA_ARGS__};                                           \
-  struct NAME##_o {                                                            \
-    using value_type = NAME##_e;                                               \
-    using enum NAME##_e;                                                       \
-    static consteval std::string_view name() {                                 \
-      return #NAME;                                                            \
-    }                                                                          \
-    static consteval std::string_view description() {                          \
-      return "one of: [" #__VA_ARGS__ "] " description_;                       \
-    }                                                                          \
-    static constexpr auto values = std::to_array({__VA_ARGS__});               \
-    static constexpr auto values_count = noexport::count_tokens(#__VA_ARGS__); \
-                                                                               \
-    static constexpr std::array<std::string_view, values_count> names =        \
-        noexport::split_tokens<values_count>(#__VA_ARGS__);                    \
-    static constexpr auto& get(auto& x) {                                      \
-      return x.NAME;                                                           \
-    }                                                                          \
-    static constexpr bool has_default() noexcept {                             \
-      return true;                                                             \
-    }                                                                          \
+#define STRING_ENUM(NAME, DESCRIPTION, ...)                                           \
+  enum struct NAME##_e{__VA_ARGS__};                                                  \
+  struct NAME##_o {                                                                   \
+    using value_type = NAME##_e;                                                      \
+    using enum NAME##_e;                                                              \
+    static consteval std::string_view name() {                                        \
+      return #NAME;                                                                   \
+    }                                                                                 \
+    static consteval std::string_view description() {                                 \
+      (void)"" DESCRIPTION; /*validate description is a string literal*/              \
+      return "one of: [" #__VA_ARGS__ "] " DESCRIPTION;                               \
+    }                                                                                 \
+    static constexpr auto values = std::to_array({__VA_ARGS__});                      \
+    static constexpr auto values_count = noexport::count_enum_entities(#__VA_ARGS__); \
+                                                                                      \
+    static constexpr std::array<std::string_view, values_count> names =               \
+        noexport::split_enum<values_count>(#__VA_ARGS__);                             \
+    static constexpr auto& get(auto& x) {                                             \
+      return x.NAME;                                                                  \
+    }                                                                                 \
+    static constexpr bool has_default() noexcept {                                    \
+      return true;                                                                    \
+    }                                                                                 \
   };
 
 #include <clinok/generate.hpp>

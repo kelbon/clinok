@@ -14,7 +14,7 @@ jobs:
         cpp_standard: [20]
         build_type: [Debug, Release]
     runs-on: ${{matrix.os}}
-    name: clang-${{matrix.version}}-${{matrix.build_type}}
+    name: WF ${{matrix.os}} clang ${{matrix.build_type}} ${{matrix.compiler}}-${{matrix.version}} ${{matrix.cpp_standard}}
     steps:
       - uses: actions/checkout@v2
 

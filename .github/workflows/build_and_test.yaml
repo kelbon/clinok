@@ -14,6 +14,7 @@ jobs:
         compiler: [g++-12, clang++-14]
         cpp_standard: [20]
         build_type: [Debug, Release]
+    name: WF ${{matrix.os}} ${{matrix.build_type}} ${{matrix.compiler}}-${{matrix.cpp_standard}}
     runs-on: ${{matrix.os}}
 
     steps:

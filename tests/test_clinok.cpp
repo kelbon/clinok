@@ -19,6 +19,57 @@
 void use(auto&&...) {
 }
 
+void test_trim_ws() {
+  using clinok::noexport::trim_ws;
+
+  static_assert(trim_ws("") == "");
+  static_assert(trim_ws("   ") == "");
+  static_assert(trim_ws(" aa") == "aa");
+  static_assert(trim_ws("abc") == "abc");
+  static_assert(trim_ws("abc   ") == "abc");
+  static_assert(trim_ws("   abc   ") == "abc");
+}
+
+void test_split_by_comma() {
+  using clinok::noexport::split_str_by_comma;
+
+  std::vector<std::string_view> vec(100);
+  std::string_view* in = vec.data();
+  auto* out = split_str_by_comma("", in);
+  error_if(out != in);
+  out = split_str_by_comma("hello", in);
+  error_if(out - in != 1);
+  error_if(*in != "hello");
+  std::fill(vec.begin(), vec.end(), "");
+  out = split_str_by_comma("hello , world", in);
+  error_if(out - in != 2);
+  error_if(in[0] != "hello" || in[1] != "world");
+  out = split_str_by_comma("  hello,world, abc", in);
+  error_if(out - in != 3);
+  error_if(in[0] != "hello" || in[1] != "world" || in[2] != "abc");
+  std::fill(vec.begin(), vec.end(), "");
+  try {
+    out = split_str_by_comma("  hello,world, abc,", in);
+  } catch (const char* p) {
+    error_if(std::string_view(p) != "invalid syntax: trailing comma");
+  }
+  try {
+    out = split_str_by_comma("  hello,world, abc,  ", in);
+  } catch (const char* p) {
+    error_if(std::string_view(p) != "invalid syntax: trailing comma");
+  }
+  try {
+    out = split_str_by_comma(" ,  ", in);
+  } catch (const char* p) {
+    error_if(std::string_view(p) != "invalid syntax: trailing comma");
+  }
+  try {
+    out = split_str_by_comma(",", in);
+  } catch (const char* p) {
+    error_if(std::string_view(p) != "invalid syntax: trailing comma");
+  }
+}
+
 void test_levenshtein_distance() {
   struct testcase {
     std::string a;
@@ -62,7 +113,8 @@ void test_parse(std::vector<const char*> argv, clinok::errc expected_err, std::s
 }
 
 int main() {
-  auto n = cli1::color_o::names;
+  test_trim_ws();
+  test_split_by_comma();
   test_levenshtein_distance();
   test_parse(
       {
