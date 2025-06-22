@@ -1,17 +1,13 @@
 name: build_and_test
 
-on:
-  pull_request:
-  push:
-    branches:
-      - main
+on: push
 
 jobs:
   build:
     strategy:
       matrix:
-        os: [ubuntu-24.04]
-        compiler: [g++-12, g++-14, clang++-14, clang++-17]
+        os: [ubuntu-22.04]
+        compiler: [g++-12, clang++-14]
         cpp_standard: [20]
         build_type: [Debug, Release]
     runs-on: ${{matrix.os}}
@@ -22,14 +18,14 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install ninja-build lld gcc-12 gcc-14 clang-14 clang-17
+          sudo apt-get install ninja-build lld gcc-12 clang-14
           sudo ln -sf /usr/local/bin/ld /usr/bin/lld
       - name: Configure CMake
-        run:  |
-          cmake .                                         \
-            -DCMAKE_BUILD_TYPE=${{matrix.build_type}}     \
-            -DCMAKE_CXX_COMPILER=${{matrix.compiler}}     \
-            -DCMAKE_CXX_STANDARD=${{matrix.cpp_standard}} \
+        run: |
+          cmake . -DCLINOK_ENABLE_TESTING=ON              \
+            -DCMAKE_BUILD_TYPE=${{matrix.build_type}} \
+            -DCMAKE_CXX_COMPILER=${{matrix.compiler}} \
+            -DCMAKE_CXX_STANDARD=${{matrix.cpp_standard}}   \
             -B build -G "Ninja"
       - name: Build
         run:

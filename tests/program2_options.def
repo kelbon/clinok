@@ -1,4 +1,3 @@
-PROGRAM(my_program_2)
 TAG(mytag, "something")
 BOOLEAN(works, "it works", default(false))
 STRING(hello_world, "because, why not", default("hello, man"))
@@ -11,3 +10,5 @@ STRING(ABC2, "VERY"
 "LONG\n"
 "DESC FDISF ODF OFDOISE \n",
 default("why"))
+
+ENUM(str_enum, "enum str description", "hello", "world", "float")

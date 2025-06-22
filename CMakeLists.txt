@@ -1,9 +1,11 @@
 cmake_minimum_required(VERSION 3.21)
 project(clinok LANGUAGES CXX)
-# TODO change file extension
-add_library(clinoklib INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/include/cli_interface.hpp")
 
-target_include_directories(clinoklib INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/include")
+option(CLINOK_ENABLE_TESTING "enables testing" OFF)
+
+add_library(clinoklib STATIC "${CMAKE_CURRENT_SOURCE_DIR}/src/clinok/utils.cpp")
+
+target_include_directories(clinoklib PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
 set_target_properties(clinoklib PROPERTIES
 	CMAKE_CXX_EXTENSIONS OFF
@@ -15,5 +17,7 @@ if(MSVC)
   target_compile_options(clinoklib INTERFACE "/Zc:__cplusplus" "/Zc:preprocessor" "/permissive-" "/wd5051" "/wd4848")
 endif()
 
-include(CTest)
-add_subdirectory(tests)
+if (CLINOK_ENABLE_TESTING)
+	include(CTest)
+	add_subdirectory(tests)
+endif()

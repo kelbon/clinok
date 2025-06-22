@@ -7,9 +7,9 @@ STRING(ABC2,
        "VERY"
        "mda\n",
        default("why"))
-INTEGER(ab, "integer description", default(15))
 ENUM(abc, "enum description", 1, 2, 3, 4, 5)
 ENUM(str_enum, "enum str description", "hello", "world", "float")
 
 ALIAS(h, help)
 ALIAS(w, works)
+ALIAS(hh, abc)
