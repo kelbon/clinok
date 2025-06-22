@@ -1,15 +1,18 @@
 TAG(mytag, "something")
 BOOLEAN(works, "it works", default(false))
-STRING(hello_world, "because, why not", default("hello, man"))
+STRING(hello_world, "because, why not",    
+default("hello, man"))
 STRING(myname,
-       R"(fdsfdsfsddsfsdffdsfsireriteowireowroiewr)")
+       R"(fdsfdsfsddsfsdffdsfsireriteowireowroiewr)",   default(""))
 STRING(ABC2,
        "VERY"
        "mda\n",
        default("why"))
 ENUM(abc, "enum description", 1, 2, 3, 4, 5)
 ENUM(str_enum, "enum str description", "hello", "world", "float")
-
+INTEGER(myint, "myint description", default(17))
+INTEGER(myint2, "myint2 without default")
 ALIAS(h, help)
 ALIAS(w, works)
 ALIAS(hh, abc)
+ALIAS(i, myint2)

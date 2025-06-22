@@ -23,10 +23,6 @@
 #define INTEGER(...) OPTION(::std::int_least64_t, __VA_ARGS__)
 #endif
 
-#ifndef PATH
-#define PATH(...) OPTION(::std::filesystem::path, __VA_ARGS__)
-#endif
-
 #ifndef ALIAS
 #define ALIAS(a, b)
 #endif
@@ -38,7 +34,6 @@ TAG(help, "list of all options")
 #undef STRING
 #undef TAG
 #undef ENUM
-#undef PATH
 #undef OPTION
 #undef INTEGER
 #undef ALIAS
