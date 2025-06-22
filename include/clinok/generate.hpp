@@ -15,6 +15,10 @@
 #define ENUM(...)
 #endif
 
+#ifndef STRING_ENUM
+#define STRING_ENUM(NAME, ...) OPTION(NAME_##_e, NAME, __VA_ARGS__)
+#endif
+
 #ifndef TAG
 #define TAG(...) OPTION(void, __VA_ARGS__)
 #endif
@@ -34,6 +38,7 @@ TAG(help, "list of all options")
 #undef STRING
 #undef TAG
 #undef ENUM
+#undef STRING_ENUM
 #undef OPTION
 #undef INTEGER
 #undef ALIAS
