@@ -17,6 +17,10 @@ if(MSVC)
   target_compile_options(clinoklib INTERFACE "/Zc:__cplusplus" "/Zc:preprocessor" "/permissive-" "/wd5051" "/wd4848")
 endif()
 
+if (CLINOK_ENABLE_EXAMPLES)
+	add_subdirectory(examples)
+endif()
+
 if (CLINOK_ENABLE_TESTING)
 	include(CTest)
 	add_subdirectory(tests)

@@ -16,7 +16,7 @@ jobs:
 
       - name: Configure project with CMake
         run: |
-          cmake . -B build -DCLINOK_ENABLE_TESTING=ON
+          cmake . -B build -DCLINOK_ENABLE_TESTING=ON -DCLINOK_ENABLE_EXAMPLES=ON
 
       - name: Build project
         run: |

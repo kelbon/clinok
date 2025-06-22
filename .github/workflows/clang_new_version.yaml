@@ -28,7 +28,9 @@ jobs:
           sudo ln -sf /usr/local/bin/ld /usr/bin/lld
       - name: Configure CMake
         run:  |
-          cmake . -DCLINOK_ENABLE_TESTING=ON             \
+          cmake . \
+            -DCLINOK_ENABLE_EXAMPLES=ON             \
+            -DCLINOK_ENABLE_TESTING=ON             \
             -DCMAKE_BUILD_TYPE=${{matrix.build_type}}     \
             -DCMAKE_CXX_COMPILER=clang++-${{matrix.version}}     \
             -DCMAKE_CXX_STANDARD=${{matrix.cpp_standard}} \

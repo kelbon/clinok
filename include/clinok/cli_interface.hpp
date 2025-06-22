@@ -13,17 +13,19 @@
 #error program_options_file must be defined
 #endif
 
-#include <cstring>
-#include <span>
-#include <string_view>
-#include <type_traits>
+#include <array>
+#include <algorithm>
 #include <cassert>
+#include <cstring>
 #include <iterator>
 #include <iostream>
-#include <algorithm>
-#include <array>
-#include <clinok/utils.hpp>
+#include <type_traits>
+#include <ranges>
 #include <vector>
+#include <span>
+#include <string_view>
+
+#include <clinok/utils.hpp>
 
 namespace CLINOK_NAMESPACE_NAME {
 
@@ -83,6 +85,60 @@ using namespace ::clinok;
     }                                                                                                      \
   };
 
+namespace noexport {
+
+consteval std::size_t count_tokens(std::string_view values) {
+  if (std::ranges::count(values, '=') > 1) {
+    throw "Incorrect STRING_ENUM";
+  }
+  if (values.empty()) {
+    throw "Incorrect STRING_ENUM without values";
+  }
+  return std::ranges::count(values, ',') + 1;
+}
+
+template <std::size_t N>
+consteval std::array<std::string_view, N> split_tokens(std::string_view values) {
+  std::array<std::string_view, N> result{};
+  if (count_tokens(values) != N) {
+    throw "Something got wrong";
+  }
+  std::size_t i = 0;
+  for (auto subview : std::views::split(values, ',')) {
+    std::string_view token(&*subview.begin(), std::ranges::distance(subview));
+    token.remove_prefix(token.find_first_not_of(" \t\n"));
+    token.remove_suffix(token.size() - token.find_last_not_of(" \t\n") - 1);
+    result[i++] = token;
+  }
+  return result;
+}
+
+}  // namespace noexport
+
+#define STRING_ENUM(NAME, description_, ...)                                   \
+  enum struct NAME##_e{__VA_ARGS__};                                           \
+  struct NAME##_o {                                                            \
+    using value_type = NAME##_e;                                               \
+    using enum NAME##_e;                                                       \
+    static consteval std::string_view name() {                                 \
+      return #NAME;                                                            \
+    }                                                                          \
+    static consteval std::string_view description() {                          \
+      return "one of: [" #__VA_ARGS__ "] " description_;                       \
+    }                                                                          \
+    static constexpr auto values = std::to_array({__VA_ARGS__});               \
+    static constexpr auto values_count = noexport::count_tokens(#__VA_ARGS__); \
+                                                                               \
+    static constexpr std::array<std::string_view, values_count> names =        \
+        noexport::split_tokens<values_count>(#__VA_ARGS__);                    \
+    static constexpr auto& get(auto& x) {                                      \
+      return x.NAME;                                                           \
+    }                                                                          \
+    static constexpr bool has_default() noexcept {                             \
+      return true;                                                             \
+    }                                                                          \
+  };
+
 #include <clinok/generate.hpp>
 
 namespace noexport {
@@ -120,6 +176,7 @@ struct options {
 #define BOOLEAN(name, description, ...) bool name DD_CLI##__VA_ARGS__;
 #define STRING(name, description, ...) std::string_view name DD_CLI##__VA_ARGS__;
 #define ENUM(name, description, ...) name##_o ::value_type name = name##_o ::values[0];
+#define STRING_ENUM(name, description, ...) name##_o ::value_type name = name##_o::values[0];
 #define INTEGER(name, description, ...) std::int_least64_t name DD_CLI##__VA_ARGS__;
 
 #include <clinok/generate.hpp>
@@ -147,6 +204,7 @@ struct presented_options {
 
 #define OPTION(type, name, ...) bool name = false;
 #define ENUM(name, ...) bool name = false;
+#define STRING_ENUM(name, ...) bool name = false;
 
 #include <clinok/generate.hpp>
 };
@@ -254,6 +312,25 @@ constexpr options parse(args_t args, error_code& ec) noexcept {
     }                                                                   \
     continue;                                                           \
   }
+#define STRING_ENUM(name, ...)                                                    \
+  if (s == std::string_view(#name)) {                                             \
+    po.name = true;                                                               \
+    std::string_view value;                                                       \
+    if (errc ec = try_parse(++it, value); ec != errc::ok) {                       \
+      set_error(typed, ec, std::string(s));                                       \
+      return o;                                                                   \
+    }                                                                             \
+    constexpr auto& names = name##_o ::names;                                     \
+    constexpr auto& values = name##_o ::values;                                   \
+    if (auto it = std::find(begin(names), end(names), value); it != end(names)) { \
+      std::size_t i = it - begin(names);                                          \
+      o.name = values[i];                                                         \
+    } else {                                                                      \
+      set_error(typed, errc::impossible_enum_value, std::string(s));              \
+      return o;                                                                   \
+    }                                                                             \
+    continue;                                                                     \
+  }
 #define INTEGER(...) STRING(__VA_ARGS__)
 #define BOOLEAN(...) STRING(__VA_ARGS__)
 #include <clinok/generate.hpp>
@@ -308,7 +385,13 @@ constexpr Out print_err_to(const error_code& err, Out out) {
   switch (err.what) {
     case errc::impossible_enum_value:
       for_each_option([&](auto o) {
-        if constexpr (requires { o.values; }) {
+        if constexpr (requires { o.names; }) {
+          if (o.name() == err.ctx.resolved_name) {
+            out(". Possible values are: ");
+            for (auto& x : o.names)
+              out(x), out(' ');
+          }
+        } else if constexpr (requires { o.values; }) {
           if (o.name() == err.ctx.resolved_name) {
             out(". Possible values are: ");
             for (auto& x : o.values)

@@ -1,0 +1,5 @@
+STRING_ENUM(color, "ASCII color", black, green, red, blue)
+INTEGER(count, "count of lines", default(1))
+
+ALIAS(h, help)
+ALIAS(c, color)

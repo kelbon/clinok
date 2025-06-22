@@ -64,6 +64,7 @@ void test_parse(std::vector<const char*> argv, clinok::errc expected_err, std::s
 }
 
 int main() {
+  auto n = cli1::color_o::names;
   test_levenshtein_distance();
   test_parse(
       {
@@ -143,12 +144,57 @@ int main() {
       },
       clinok::errc::ok, "");
 
+  test_parse(
+      {
+          "program_name_placeholder",
+          "--myint2",
+          "1",
+          "--color",
+          "red",
+      },
+      clinok::errc::ok, "");
+
+  test_parse(
+      {
+          "program_name_placeholder",
+          "--myint2",
+          "1",
+          "-c",
+          "blue",
+      },
+      clinok::errc::ok, "");
+
+  test_parse(
+      {
+          "program_name_placeholder",
+          "--myint2",
+          "1",
+          "--color",
+          "black",
+      },
+      clinok::errc::impossible_enum_value,
+      "impossible enum value when parsing --color. Possible values are: red green blue yellow \n");
+
+  test_parse(
+      {
+          "program_name_placeholder",
+          "--myint2",
+          "1",
+          "-c",
+          "black",
+      },
+      clinok::errc::impossible_enum_value,
+      "impossible enum value when parsing -c resolved as color. Possible values are: red green blue yellow "
+      "\n");
+
   cli1::options o1;
   // should compile
-  use(o1.mytag, o1.works, o1.hello_world, o1.myname, o1.ABC2, o1.abc, o1.str_enum, o1.myint, o1.myint2);
+  use(o1.mytag, o1.works, o1.hello_world, o1.myname, o1.ABC2, o1.abc, o1.str_enum, o1.myint, o1.myint2,
+      o1.color);
   // default values
   error_if(o1.myint != 17 || o1.myint2 != 0 || o1.str_enum != "hello" || o1.abc != 1 || o1.ABC2 != "why" ||
-           o1.myname != "" || o1.hello_world != "hello, man" || o1.works != false || o1.mytag != false);
+           o1.myname != "" || o1.hello_world != "hello, man" || o1.works != false || o1.mytag != false ||
+           o1.color != cli1::color_e::red);
   cli2::options o2;
   use(o2.mytag, o2.works, o2.hello_world, o2.myname, o2.ABC2, o2.str_enum);
 }

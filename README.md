@@ -30,6 +30,10 @@ ENUM(name, "enum description", 1, 2, 3, 4, 5)
 # string enum
 ENUM(name, "string enum description", "first and default value", "value2", "value3")
 
+# ENUM with autoparsing into c++ scoped enum. first value is default
+# restrictions from c++: dont use keywords (default, struct and etc)
+STRING_ENUM(name, "enum description", red, blue, green)
+
 # just int
 INTEGER(name, "description", default(42))
 INTEGER(name, "description")
@@ -56,7 +60,7 @@ program_options.def file:
 ```cpp
 
 // default value is "black", possible values "black", "green", "red", "blue"
-ENUM(color, "text color", "black", "green", "red", "blue")
+STRING_ENUM(color, "text color", black, green, red, blue)
 INTEGER(count, "count of lines", default(1))
 
 ALIAS(h, help)
