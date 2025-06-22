@@ -10,8 +10,6 @@
 #include <iostream>
 #include <sstream>
 
-#include <clinok/utils.hpp>
-
 #define error_if(...)                          \
   if ((__VA_ARGS__)) {                         \
     std::cout << "ERROR ON LINE " << __LINE__; \

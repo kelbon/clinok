@@ -216,6 +216,7 @@ consteval bool has_option(std::string_view name) {
 // accepts function which acceps std::string_view to out
 template <typename Out>
 inline Out print_help_message_to(Out out) noexcept {
+  out("\n");
   auto option_arg_str = []<typename O>(O) {
     if (std::is_same_v<typename O::value_type, std::string_view>)
       return "<string>";
