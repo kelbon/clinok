@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <string_view>
 #include <span>
 #include <cassert>
@@ -88,7 +89,56 @@ template <typename...>
 struct typelist {};
 
 namespace noexport {
+
 struct null_option {};
+
+consteval std::size_t count_enum_entities(std::string_view values) {
+  if (std::count(values.begin(), values.end(), '=') > 1)
+    throw "Incorrect STRING_ENUM";
+  if (values.empty())
+    throw "Incorrect STRING_ENUM without values";
+  return std::count(values.begin(), values.end(), ',') + 1;
+}
+
+constexpr std::string_view trim_ws(std::string_view str) noexcept {
+  auto pos = str.find_first_not_of(" \t\n");
+  auto lastpos = str.find_last_not_of(" \t\n");
+  if (pos == str.npos)
+    return "";
+  return std::string_view(str.begin() + pos, str.begin() + lastpos + 1);
+}
+
+constexpr std::string_view* split_str_by_comma(std::string_view values, std::string_view* out) {
+  values = trim_ws(values);
+  if (values.empty())
+    return out;
+  for (;;) {
+    auto pos = values.find(',');
+    if (pos == values.npos) {
+      values = trim_ws(values);
+      if (values.empty())
+        throw "invalid syntax: trailing comma";
+      *out = values;
+      ++out;
+      break;
+    }
+    *out = trim_ws(values.substr(0, pos));
+    ++out;
+
+    values.remove_prefix(pos + 1);
+  }
+  return out;
+}
+
+template <std::size_t N>
+consteval std::array<std::string_view, N> split_enum(std::string_view values) {
+  std::array<std::string_view, N> result;
+  if (count_enum_entities(values) != N)
+    throw "Something got wrong";
+  split_str_by_comma(values, result.data());
+  return result;
+}
+
 }  // namespace noexport
 
 errc from_cli(std::string_view raw_arg, std::string_view& s) noexcept;

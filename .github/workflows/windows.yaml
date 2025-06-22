@@ -8,6 +8,7 @@ on:
 
 jobs:
   build:
+    name: WF windows latest
     runs-on: windows-latest
 
     steps:
