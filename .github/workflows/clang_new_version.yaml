@@ -3,8 +3,7 @@ name: build_and_test
 on:
   pull_request:
   push:
-    branches:
-      - main
+    branches: [ $default-branch ]
 jobs:
   build:
     strategy:
