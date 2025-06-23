@@ -1,38 +1,38 @@
 
 #ifndef OPTION
-#define OPTION(...)
+  #define OPTION(...)
 #endif
 
 #ifndef BOOLEAN
-#define BOOLEAN(...) OPTION(bool, __VA_ARGS__)
+  #define BOOLEAN(...) OPTION(bool, __VA_ARGS__)
 #endif
 
 #ifndef STRING
-#define STRING(...) OPTION(::std::string_view, __VA_ARGS__)
+  #define STRING(...) OPTION(::std::string_view, __VA_ARGS__)
 #endif
 
 #ifndef ENUM
-#define ENUM(...)
+  #define ENUM(...)
 #endif
 
 #ifndef STRING_ENUM
-#define STRING_ENUM(NAME, ...) OPTION(NAME_##_e, NAME, __VA_ARGS__)
+  #define STRING_ENUM(NAME, ...) OPTION(NAME_##_e, NAME, __VA_ARGS__)
 #endif
 
 #ifndef TAG
-#define TAG(...) OPTION(void, __VA_ARGS__)
+  #define TAG(...) OPTION(void, __VA_ARGS__)
 #endif
 
 #ifndef INTEGER
-#define INTEGER(...) OPTION(::std::int_least64_t, __VA_ARGS__)
+  #define INTEGER(...) OPTION(::std::int_least64_t, __VA_ARGS__)
 #endif
 
 #ifndef ALIAS
-#define ALIAS(a, b)
+  #define ALIAS(a, b)
 #endif
 
 #ifndef REQUIRED
-#define REQUIRED(...)
+  #define REQUIRED(...)
 #endif
 
 #include program_options_file

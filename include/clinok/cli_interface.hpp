@@ -4,13 +4,13 @@
 // to generate different parsers and options structs
 
 #ifndef CLINOK_NAMESPACE_NAME
-#define CLINOK_NAMESPACE_NAME cli
+  #define CLINOK_NAMESPACE_NAME cli
 #endif
 
 // file with description of program options, required format for this file described in README
 // ( https://github.com/kelbon/clinok )
 #ifndef program_options_file
-#error program_options_file must be defined
+  #error program_options_file must be defined
 #endif
 
 #include <array>
