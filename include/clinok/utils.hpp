@@ -101,8 +101,8 @@ consteval std::size_t count_enum_entities(std::string_view values) {
 }
 
 constexpr std::string_view trim_ws(std::string_view str) noexcept {
-  auto pos = str.find_first_not_of(" \t\n");
-  auto lastpos = str.find_last_not_of(" \t\n");
+  auto pos = str.find_first_not_of(" \t\n\r");
+  auto lastpos = str.find_last_not_of(" \t\n\r");
   if (pos == str.npos)
     return "";
   return std::string_view(str.begin() + pos, str.begin() + lastpos + 1);

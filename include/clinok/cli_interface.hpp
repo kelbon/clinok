@@ -124,6 +124,14 @@ using all_options = clinok::typelist<::clinok::noexport::null_option
 
 }  // namespace noexport
 
+template <typename Option>
+struct is_required_option : std::bool_constant<!Option::has_default()> {};
+
+#define REQUIRED(NAME) \
+  template <>          \
+  struct is_required_option<NAME##_o> : std::true_type {};
+#include <clinok/generate.hpp>
+
 // passes empty option description object to 'foo'
 constexpr void for_each_option(auto foo) {
   [&]<typename... Options>(clinok::typelist<::clinok::noexport::null_option, Options...>) {
@@ -148,7 +156,7 @@ struct options {
 #define TAG(name, description) bool name = false;
 #define BOOLEAN(name, description, ...) bool name DD_CLI##__VA_ARGS__;
 #define STRING(name, description, ...) std::string_view name DD_CLI##__VA_ARGS__;
-#define ENUM(name, description, ...) name##_o ::value_type name = name##_o ::values[0];
+#define ENUM(name, description, ...) name##_o ::value_type name = name##_o::values[0];
 #define STRING_ENUM(name, description, ...) name##_o ::value_type name = name##_o::values[0];
 #define INTEGER(name, description, ...) std::int_least64_t name DD_CLI##__VA_ARGS__;
 
@@ -177,7 +185,6 @@ struct presented_options {
 
 #define OPTION(type, name, ...) bool name = false;
 #define ENUM(name, ...) bool name = false;
-#define STRING_ENUM(name, ...) bool name = false;
 
 #include <clinok/generate.hpp>
 };
@@ -314,10 +321,11 @@ constexpr options parse(args_t args, error_code& ec) noexcept {
     return o;
   }  // parse loop end
 
-  for_each_option([&](auto o) {
+  for_each_option([&]<typename O>(O o) {
     // is required and not present in arg list
-    if (!o.has_default() && !o.get(po)) {
-      set_error(o.name(), errc::required_option_not_present, o.name());
+    if constexpr (is_required_option<O>::value) {
+      if (!o.get(po))
+        set_error(o.name(), errc::required_option_not_present, o.name());
     }
   });
   return o;
