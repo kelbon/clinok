@@ -31,6 +31,10 @@
 #define ALIAS(a, b)
 #endif
 
+#ifndef REQUIRED
+#define REQUIRED(...)
+#endif
+
 #include program_options_file
 TAG(help, "list of all options")
 
@@ -42,3 +46,4 @@ TAG(help, "list of all options")
 #undef OPTION
 #undef INTEGER
 #undef ALIAS
+#undef REQUIRED

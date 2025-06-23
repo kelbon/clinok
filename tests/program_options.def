@@ -18,3 +18,5 @@ ALIAS(w, works)
 ALIAS(hh, abc)
 ALIAS(i, myint2)
 ALIAS(c, color)
+
+REQUIRED(color)

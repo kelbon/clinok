@@ -148,6 +148,15 @@ int main() {
           "--abc",
           "1",
       },
+      clinok::errc::required_option_not_present, "required option color is missing\n");
+  test_parse(
+      {
+          "program_name_placeholder",
+          "--abc",
+          "1",
+          "--color",
+          "blue",
+      },
       clinok::errc::required_option_not_present, "required option myint2 is missing\n");
   test_parse(
       {
@@ -156,6 +165,8 @@ int main() {
           "1",
           "--myint2",
           "1",
+          "--color",
+          "blue",
       },
       clinok::errc::ok, "");
   // with alias
@@ -166,6 +177,8 @@ int main() {
           "1",
           "-i",
           "1",
+          "-c",
+          "yellow",
       },
       clinok::errc::ok, "");
 
@@ -191,6 +204,8 @@ int main() {
           "1",
           "-hh",
           "1",
+          "-c",
+          "red",
       },
       clinok::errc::ok, "");
 
@@ -237,6 +252,9 @@ int main() {
       "impossible enum value when parsing -c resolved as color. Possible values are: red green blue yellow "
       "\n");
 
+  static_assert(cli1::is_required_option<cli1::color_o>::value);
+  static_assert(cli1::is_required_option<cli1::myint2_o>::value);
+  static_assert(!cli1::is_required_option<cli1::ABC2_o>::value);
   cli1::options o1;
   // should compile
   use(o1.mytag, o1.works, o1.hello_world, o1.myname, o1.ABC2, o1.abc, o1.str_enum, o1.myint, o1.myint2,
