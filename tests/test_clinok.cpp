@@ -112,6 +112,32 @@ void test_parse(std::vector<const char*> argv, clinok::errc expected_err, std::s
   error_if(s != expected_msg);
 }
 
+void test_parse2(std::vector<const char*> argv, clinok::errc expected_err, std::string expected_msg,
+                 std::vector<std::string_view> expected_free_args) {
+  clinok::error_code ec;
+  cli2::options o = cli2::parse(clinok::args_range(argv.size(), (char**)argv.data()), ec);
+  if (expected_err != clinok::errc::ok)
+    error_if(!ec);
+  error_if(ec.what != expected_err);
+  std::stringstream str;
+  cli2::print_err_to(ec, [&](auto x) { str << x; });
+  auto s = str.str();
+  error_if(s != expected_msg);
+  error_if(o.additional_args != expected_free_args);
+}
+
+void test_select_subprogram(std::vector<const char*> vecargs, std::string_view progname,
+                            std::initializer_list<std::string_view> subprogram_names,
+                            std::string expected_msg, int expected_index) {
+  int argc = vecargs.size();
+  char** argv = (char**)vecargs.data();
+  std::stringstream ssm;
+  int i = clinok::select_subprogramm(argc, argv, progname, subprogram_names, ssm);
+  auto msg = ssm.str();
+  error_if(msg != expected_msg);
+  error_if(i != expected_index);
+}
+
 int main() {
   test_trim_ws();
   test_split_by_comma();
@@ -251,10 +277,70 @@ int main() {
       clinok::errc::impossible_enum_value,
       "impossible enum value when parsing -c resolved as color. Possible values are: red green blue yellow "
       "\n");
-
+  test_parse(
+      {
+          "program_name_placeholder",
+          "myint2",
+          "1",
+          "-c",
+          "black",
+      },
+      clinok::errc::disallowed_free_arg, "disallowed free arg myint2\n");
+  test_parse2(
+      {
+          "program_name_placeholder",
+          "--myname",
+          "name",
+      },
+      clinok::errc::ok, "", {});
+  test_parse2(
+      {
+          "program_name_placeholder",
+          "--myname",
+          "name",
+          "arg1",
+          "arg2",
+      },
+      clinok::errc::ok, "", {"arg1", "arg2"});
+  test_parse2(
+      {
+          "program_name_placeholder",
+          "arg1",
+          "--myname",
+          "name",
+          "arg2",
+          "arg3",
+      },
+      clinok::errc::ok, "", {"arg1", "arg2", "arg3"});
+  test_parse2(
+      {
+          "program_name_placeholder",
+          "arg1",
+          "arg2",
+          "--myname",
+          "name",
+      },
+      clinok::errc::ok, "", {"arg1", "arg2"});
+  test_parse2(
+      {
+          "program_name_placeholder",
+          "-",
+          "--myname",
+          "name",
+      },
+      clinok::errc::option_missing, "option name is missing, - used instead", {});
+  test_parse2(
+      {
+          "program_name_placeholder",
+          "--",
+          "--myname",
+          "name",
+      },
+      clinok::errc::option_missing, "option name is missing, -- used instead", {});
   static_assert(cli1::is_required_option<cli1::color_o>::value);
   static_assert(cli1::is_required_option<cli1::myint2_o>::value);
   static_assert(!cli1::is_required_option<cli1::ABC2_o>::value);
+  static_assert(!cli1::allow_additional_args && cli2::allow_additional_args);
   cli1::options o1;
   // should compile
   use(o1.mytag, o1.works, o1.hello_world, o1.myname, o1.ABC2, o1.abc, o1.str_enum, o1.myint, o1.myint2,
@@ -265,4 +351,15 @@ int main() {
            o1.color != cli1::color_e::red);
   cli2::options o2;
   use(o2.mytag, o2.works, o2.hello_world, o2.myname, o2.ABC2, o2.str_enum);
+
+  test_select_subprogram({"git", "status", "abc"}, "git", {"status", "branch"}, "", 0);
+  test_select_subprogram({"git", "status", "abc"}, "git", {"branch", "status"}, "", 1);
+  test_select_subprogram({"git", "status", "abc"}, "git", {"status"}, "", 0);
+  test_select_subprogram({"git", "statu", "abc"}, "git", {"branch", "status"}, R"(Usage: git <subprogram>
+valid subprograms list:
+branch
+status
+)",
+                         -2);
+  return 0;
 }

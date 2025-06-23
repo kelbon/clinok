@@ -12,3 +12,5 @@ STRING(ABC2, "VERY"
 default("why"))
 
 ENUM(str_enum, "enum str description", "hello", "world", "float")
+
+ALLOW_ADDITIONAL_ARGS

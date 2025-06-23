@@ -20,3 +20,4 @@ ALIAS(i, myint2)
 ALIAS(c, color)
 
 REQUIRED(color)
+
