@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <iostream>
 #include <string_view>
 #include <span>
 #include <cassert>
@@ -49,11 +50,14 @@ struct context {
 
 enum struct errc {
   ok,
+  option_missing,     // invalid - or -- without option name
   argument_missing,   // option reqires arg and it is missing
   arg_parsing_error,  // from_cli(string_view, option&) returns 'false'
   invalid_argument,   // argument is presented, but its invalid (not in enum or not bool etc)
   unknown_option,     // unknown option parsed
   impossible_enum_value,
+  // if arg without - or -- passed and ALLOW_ADDITIONAL_ARGS not present in declarations file
+  disallowed_free_arg,
   not_a_number,                 // parse int argument impossible
   required_option_not_present,  // option without default value not present in arguments
 };
@@ -144,5 +148,43 @@ consteval std::array<std::string_view, N> split_enum(std::string_view values) {
 errc from_cli(std::string_view raw_arg, std::string_view& s) noexcept;
 errc from_cli(std::string_view raw_arg, std::int_least64_t& s) noexcept;
 errc from_cli(std::string_view raw_arg, bool& b) noexcept;
+
+// assumes first arg as program name, second arg as subprogram name
+// like 'git status' and selects by name.
+// `programname` - main program, is case git status/git branch programname == git
+// `names` - names of subprogram to select
+// `out` - stream for printing program usage on error
+//
+// returns index of selected name, also changes argc/argv to be passed into 'parse' as if
+// 'parse' was for subprogram
+// returns < 0 on failure
+[[nodiscard]] inline int select_subprogramm(int& argc, char**& argv, std::string_view programname,
+                                            std::initializer_list<std::string_view> names,
+                                            std::ostream& out = std::cout) {
+  auto print_usage_and_exit = [&]() {
+    out << "Usage: " << programname << " <subprogram>\n";
+    out << "valid subprograms list:\n";
+    for (std::string_view s : names)
+      out << s << std::endl;
+  };
+  if (argc < 2) {
+    print_usage_and_exit();
+    return -1;
+  }
+  std::string_view n = argv[1];
+  auto it = std::find(names.begin(), names.end(), n);
+  if (it == names.end()) {
+    print_usage_and_exit();  // no such names
+    return -2;
+  }
+  if (std::find(std::next(it), names.end(), n) != names.end()) {
+    print_usage_and_exit();  // several names match
+    return -3;
+  }
+  // cut program name arg
+  --argc;
+  ++argv;
+  return std::distance(names.begin(), it);
+}
 
 }  // namespace clinok

@@ -35,6 +35,10 @@
   #define REQUIRED(...)
 #endif
 
+#ifndef ALLOW_ADDITIONAL_ARGS
+  #define ALLOW_ADDITIONAL_ARGS
+#endif
+
 #include program_options_file
 TAG(help, "list of all options")
 
@@ -47,3 +51,4 @@ TAG(help, "list of all options")
 #undef INTEGER
 #undef ALIAS
 #undef REQUIRED
+#undef ALLOW_ADDITIONAL_ARGS

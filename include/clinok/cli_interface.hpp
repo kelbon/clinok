@@ -114,6 +114,9 @@ using namespace ::clinok;
 
 #include <clinok/generate.hpp>
 
+#undef DD_CLI_STR
+#undef DD_CLI_STRdefault
+
 namespace noexport {
 
 using all_options = clinok::typelist<::clinok::noexport::null_option
@@ -131,6 +134,11 @@ struct is_required_option : std::bool_constant<!Option::has_default()> {};
   template <>          \
   struct is_required_option<NAME##_o> : std::true_type {};
 #include <clinok/generate.hpp>
+
+constexpr inline bool allow_additional_args = 0
+#define ALLOW_ADDITIONAL_ARGS +1
+#include <clinok/generate.hpp>
+    ;
 
 // passes empty option description object to 'foo'
 constexpr void for_each_option(auto foo) {
@@ -159,7 +167,7 @@ struct options {
 #define ENUM(name, description, ...) name##_o ::value_type name = name##_o::values[0];
 #define STRING_ENUM(name, description, ...) name##_o ::value_type name = name##_o::values[0];
 #define INTEGER(name, description, ...) std::int_least64_t name DD_CLI##__VA_ARGS__;
-
+#define ALLOW_ADDITIONAL_ARGS std::vector<std::string_view> additional_args;
 #include <clinok/generate.hpp>
 
 #undef DD_CLI
@@ -225,9 +233,6 @@ inline Out print_help_message_to(Out out) noexcept {
   return std::move(out);
 }
 
-#undef DD_CLI_STR
-#undef DD_CLI_STRdefault
-
 // assumes first arg as program name
 constexpr options parse(args_t args, error_code& ec) noexcept {
   options o;
@@ -244,9 +249,15 @@ constexpr options parse(args_t args, error_code& ec) noexcept {
   for (auto it = args.begin(); it != args.end(); ++it) {
     std::string_view typed = *it;
     std::string_view s = *it;
+
+    if (s == "-" || s == "--") {
+      set_error(typed, errc::option_missing, "");
+      return o;
+    }
+
     if (s.starts_with("--")) {
       s.remove_prefix(2);
-    } else if (s.starts_with('-') && s.size() > 1) {
+    } else if (s.starts_with('-')) {
       s.remove_prefix(1);
       constexpr auto aliases = std::to_array({
           // dummy value for handling case when there are no aliases
@@ -260,8 +271,20 @@ constexpr options parse(args_t args, error_code& ec) noexcept {
           it2 != std::end(aliases)) {
         s = it2->second;
       } else {
-        set_error(typed, errc::unknown_option, std::string(s));
+        set_error(typed, errc::unknown_option, s);
         return o;
+      }
+    } else {
+      if constexpr (!allow_additional_args) {
+        set_error(typed, errc::disallowed_free_arg, s);
+        return o;
+      } else {
+        // prevent compile time error
+        [&](auto&& o) {
+          if constexpr (allow_additional_args)
+            o.additional_args.push_back(typed);
+        }(o);
+        continue;
       }
     }
 #define TAG(name, ...)                \
@@ -274,7 +297,7 @@ constexpr options parse(args_t args, error_code& ec) noexcept {
   if (s == std::string_view(#name)) {                        \
     po.name = true;                                          \
     if (errc ec = try_parse(++it, o.name); ec != errc::ok) { \
-      set_error(typed, ec, std::string(s));                  \
+      set_error(typed, ec, s);                               \
       return o;                                              \
     }                                                        \
     continue;                                                \
@@ -283,12 +306,12 @@ constexpr options parse(args_t args, error_code& ec) noexcept {
   if (s == std::string_view(#name)) {                                   \
     po.name = true;                                                     \
     if (errc ec = try_parse(++it, o.name); ec != errc::ok) {            \
-      set_error(typed, ec, std::string(s));                             \
+      set_error(typed, ec, s);                                          \
       return o;                                                         \
     }                                                                   \
     constexpr auto& values = name##_o ::values;                         \
     if (std::find(begin(values), end(values), o.name) == end(values)) { \
-      set_error(typed, errc::impossible_enum_value, std::string(s));    \
+      set_error(typed, errc::impossible_enum_value, s);                 \
       return o;                                                         \
     }                                                                   \
     continue;                                                           \
@@ -298,7 +321,7 @@ constexpr options parse(args_t args, error_code& ec) noexcept {
     po.name = true;                                                               \
     std::string_view value;                                                       \
     if (errc ec = try_parse(++it, value); ec != errc::ok) {                       \
-      set_error(typed, ec, std::string(s));                                       \
+      set_error(typed, ec, s);                                                    \
       return o;                                                                   \
     }                                                                             \
     constexpr auto& names = name##_o ::names;                                     \
@@ -307,7 +330,7 @@ constexpr options parse(args_t args, error_code& ec) noexcept {
       std::size_t i = it - begin(names);                                          \
       o.name = values[i];                                                         \
     } else {                                                                      \
-      set_error(typed, errc::impossible_enum_value, std::string(s));              \
+      set_error(typed, errc::impossible_enum_value, s);                           \
       return o;                                                                   \
     }                                                                             \
     continue;                                                                     \
@@ -317,7 +340,7 @@ constexpr options parse(args_t args, error_code& ec) noexcept {
 #include <clinok/generate.hpp>
 
     // if 'continue' not reached
-    set_error(typed, errc::unknown_option, std::string(s));
+    set_error(typed, errc::unknown_option, s);
     return o;
   }  // parse loop end
 
@@ -347,6 +370,12 @@ template <typename Out>
 constexpr Out print_err_to(const error_code& err, Out out) {
   if (err.what == errc::ok)
     return std::move(out);
+  if (err.what == errc::option_missing) {
+    out("option name is missing, ");
+    out(err.ctx.typed);
+    out(" used instead");
+    return std::move(out);
+  }
   if (err.what == errc::required_option_not_present) {
     out("required option ");
     // its not from arguments, 'parse' should set it to correct missing option
@@ -355,7 +384,7 @@ constexpr Out print_err_to(const error_code& err, Out out) {
     return std::move(out);
   }
   out(errc2str(err.what));
-  if (err.what != errc::unknown_option)  // for better error message
+  if (err.what != errc::unknown_option && err.what != errc::disallowed_free_arg)  // for better error message
     out(" when parsing ");
   else
     out(" ");

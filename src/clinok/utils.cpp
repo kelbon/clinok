@@ -190,6 +190,10 @@ std::string_view errc2str(errc e) noexcept {
       return "not a number";
     case errc::required_option_not_present:
       return "required option not present";
+    case errc::disallowed_free_arg:
+      return "disallowed free arg";
+    case errc::option_missing:
+      return "option missing";
     case errc::ok:
       return "ok";
   }

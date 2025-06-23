@@ -44,6 +44,16 @@ ALIAS(h, help)
 # Note: alias not required to be single character
 ALIAS(longalias, option_name)
 
+# makes option required, parse will return error if such option not presented in arg list
+REQUIRED(name)
+
+# may be presented in declarations file only once
+# if present, allows to pass additional arguments in Ninja style
+# here 'abc' 'def' and 'lll' are additional arguments, not options.
+# stored in cli::option.additional_args
+# ninja -C abc def lll
+ALLOW_ADDITIONAL_ARGS
+
 ```
 
 3. set generation options
