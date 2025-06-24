@@ -132,7 +132,7 @@ void test_select_subprogram(std::vector<const char*> vecargs, std::string_view p
   int argc = vecargs.size();
   char** argv = (char**)vecargs.data();
   std::stringstream ssm;
-  int i = clinok::select_subprogramm(argc, argv, progname, subprogram_names, ssm);
+  int i = clinok::select_subprogram(argc, argv, progname, subprogram_names, ssm);
   auto msg = ssm.str();
   error_if(msg != expected_msg);
   error_if(i != expected_index);
@@ -147,19 +147,19 @@ int main() {
           "program_name_placeholder",
           "--a",
       },
-      clinok::errc::unknown_option, "unknown option --a you probably meant the -w alias\n");
+      clinok::errc::unknown_option, "unknown option \"--a\" you probably meant \"-w\" alias\n");
   test_parse(
       {
           "program_name_placeholder",
           "--ab",
       },
-      clinok::errc::unknown_option, "unknown option --ab you probably meant the --abc option\n");
+      clinok::errc::unknown_option, "unknown option \"--ab\" you probably meant \"--abc\" option\n");
   test_parse(
       {
           "program_name_placeholder",
           "--abc",
       },
-      clinok::errc::argument_missing, "argument missing when parsing --abc\n");
+      clinok::errc::argument_missing, "argument missing when parsing \"--abc\"\n");
   test_parse(
       {
           "program_name_placeholder",
@@ -167,14 +167,14 @@ int main() {
           "0",
       },
       clinok::errc::impossible_enum_value,
-      "impossible enum value when parsing --abc. Possible values are: 1 2 3 4 5 \n");
+      "impossible enum value when parsing \"--abc\". Possible values are: 1 2 3 4 5 \n");
   test_parse(
       {
           "program_name_placeholder",
           "--abc",
           "1",
       },
-      clinok::errc::required_option_not_present, "required option color is missing\n");
+      clinok::errc::required_option_not_present, "required option \"color\" is missing\n");
   test_parse(
       {
           "program_name_placeholder",
@@ -183,7 +183,7 @@ int main() {
           "--color",
           "blue",
       },
-      clinok::errc::required_option_not_present, "required option myint2 is missing\n");
+      clinok::errc::required_option_not_present, "required option \"myint2\" is missing\n");
   test_parse(
       {
           "program_name_placeholder",
@@ -214,7 +214,7 @@ int main() {
           "program_name_placeholder",
           "-hh",
       },
-      clinok::errc::argument_missing, "argument missing when parsing -hh resolved as abc\n");
+      clinok::errc::argument_missing, "argument missing when parsing \"-hh\" resolved as \"--abc\"\n");
   test_parse(
       {
           "program_name_placeholder",
@@ -222,7 +222,7 @@ int main() {
           "0",
       },
       clinok::errc::impossible_enum_value,
-      "impossible enum value when parsing -hh resolved as abc. Possible values are: 1 2 3 4 5 \n");
+      "impossible enum value when parsing \"-hh\" resolved as \"--abc\". Possible values are: 1 2 3 4 5 \n");
   test_parse(
       {
           "program_name_placeholder",
@@ -264,7 +264,7 @@ int main() {
           "black",
       },
       clinok::errc::impossible_enum_value,
-      "impossible enum value when parsing --color. Possible values are: red green blue yellow \n");
+      "impossible enum value when parsing \"--color\". Possible values are: red green blue yellow \n");
 
   test_parse(
       {
@@ -275,7 +275,8 @@ int main() {
           "black",
       },
       clinok::errc::impossible_enum_value,
-      "impossible enum value when parsing -c resolved as color. Possible values are: red green blue yellow "
+      "impossible enum value when parsing \"-c\" resolved as \"--color\". Possible values are: red green "
+      "blue yellow "
       "\n");
   test_parse(
       {
@@ -285,7 +286,7 @@ int main() {
           "-c",
           "black",
       },
-      clinok::errc::disallowed_free_arg, "disallowed free arg myint2\n");
+      clinok::errc::disallowed_free_arg, "disallowed free arg \"myint2\"\n");
   test_parse2(
       {
           "program_name_placeholder",
@@ -328,7 +329,7 @@ int main() {
           "--myname",
           "name",
       },
-      clinok::errc::option_missing, "option name is missing, - used instead", {});
+      clinok::errc::option_missing, "option name is missing, \"-\" used instead", {});
   test_parse2(
       {
           "program_name_placeholder",
@@ -336,7 +337,15 @@ int main() {
           "--myname",
           "name",
       },
-      clinok::errc::option_missing, "option name is missing, -- used instead", {});
+      clinok::errc::option_missing, "option name is missing, \"--\" used instead", {});
+  test_parse2(
+      {
+          "program_name_placeholder",
+          "--mynamr",
+          "name",
+      },
+      clinok::errc::unknown_option, "unknown option \"--mynamr\" you probably meant \"--myname\" option\n",
+      {});
   static_assert(cli1::is_required_option<cli1::color_o>::value);
   static_assert(cli1::is_required_option<cli1::myint2_o>::value);
   static_assert(!cli1::is_required_option<cli1::ABC2_o>::value);

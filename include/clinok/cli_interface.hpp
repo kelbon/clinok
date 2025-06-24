@@ -371,27 +371,29 @@ constexpr Out print_err_to(const error_code& err, Out out) {
   if (err.what == errc::ok)
     return std::move(out);
   if (err.what == errc::option_missing) {
-    out("option name is missing, ");
+    out("option name is missing, \"");
     out(err.ctx.typed);
-    out(" used instead");
+    out("\" used instead");
     return std::move(out);
   }
   if (err.what == errc::required_option_not_present) {
-    out("required option ");
+    out("required option \"");
     // its not from arguments, 'parse' should set it to correct missing option
     out(err.ctx.resolved_name);
-    out(" is missing\n");
+    out("\" is missing\n");
     return std::move(out);
   }
   out(errc2str(err.what));
   if (err.what != errc::unknown_option && err.what != errc::disallowed_free_arg)  // for better error message
-    out(" when parsing ");
+    out(" when parsing \"");
   else
-    out(" ");
+    out(" \"");
   out(err.ctx.typed);
+  out("\"");
   if (err.ctx.typed.starts_with("-") && !err.ctx.typed.starts_with("--")) {
-    out(" resolved as ");
+    out(" resolved as \"--");
     out(err.ctx.resolved_name);
+    out("\"");
   }
   switch (err.what) {
     case errc::impossible_enum_value:
@@ -413,19 +415,19 @@ constexpr Out print_err_to(const error_code& err, Out out) {
       break;
     case errc::unknown_option: {
       std::vector<std::string> optionnames;
-#define OPTION(name, ...) optionnames.push_back("--" #name);
+#define OPTION(type, name, ...) optionnames.push_back("--" #name);
 #define ENUM(name, ...) optionnames.push_back("--" #name);
 #define ALIAS(name, ...) optionnames.push_back("-" #name);
 #include <clinok/generate.hpp>
 
       auto [str, diff] = clinok::best_match_str(err.ctx.typed, optionnames);
-      if (diff < 3) {  // heuristic about misspelling
-        out(" you probably meant the ");
+      if (diff < 5) {  // heuristic about misspelling
+        out(" you probably meant \"");
         out(str);
         if (str.starts_with("--"))
-          out(" option");
+          out("\" option");
         else
-          out(" alias");
+          out("\" alias");
       }
       break;
     }

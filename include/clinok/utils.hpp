@@ -158,9 +158,9 @@ errc from_cli(std::string_view raw_arg, bool& b) noexcept;
 // returns index of selected name, also changes argc/argv to be passed into 'parse' as if
 // 'parse' was for subprogram
 // returns < 0 on failure
-[[nodiscard]] inline int select_subprogramm(int& argc, char**& argv, std::string_view programname,
-                                            std::initializer_list<std::string_view> names,
-                                            std::ostream& out = std::cout) {
+[[nodiscard]] inline int select_subprogram(int& argc, char**& argv, std::string_view programname,
+                                           std::initializer_list<std::string_view> names,
+                                           std::ostream& out = std::cout) {
   auto print_usage_and_exit = [&]() {
     out << "Usage: " << programname << " <subprogram>\n";
     out << "valid subprograms list:\n";
