@@ -1,5 +1,24 @@
-STRING_ENUM(color, "ASCII color", black, green, red, blue)
-INTEGER(count, "count of lines", default(1))
+TAG(version, "Print program version")
+
+BOOLEAN(verbose, "Enable verbose output", default(false))
+BOOLEAN(debug, "Enable debug mode")
+
+STRING(output, "Output file path", default("out.txt"))
+STRING(user, "User name")
+
+ENUM(level, "Integer level", 1, 2, 3, 4, 5)
+ENUM(mode, "Working mode", "fast", "safe", "balanced")
+
+STRING_ENUM(color, "UI color theme", red, green, blue, yellow)
+INTEGER(retries, "Number of retries", default(3))
+INTEGER(timeout, "Timeout in seconds")
+
+STRING_ENUM(log_level, "Log verbosity level", trace, debug, info, warn, error)
+
+OPTION(Point, point, "Custom type: point x,y", default(Point{0,0}))
 
 ALIAS(h, help)
-ALIAS(c, color)
+ALIAS(v, verbose)
+ALIAS(u, user)
+
+REQUIRED(user)

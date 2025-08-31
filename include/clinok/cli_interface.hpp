@@ -3,6 +3,8 @@
 // this header may be included many times in different .cpp files
 // to generate different parsers and options structs
 
+#include "clinok/cli.hpp"
+#include "clinok/descriptor_field.hpp"
 #ifndef CLINOK_NAMESPACE_NAME
   #define CLINOK_NAMESPACE_NAME cli
 #endif
@@ -24,6 +26,8 @@
 #include <span>
 #include <string_view>
 
+#include <clinok/descriptor_field.hpp>
+#include <clinok/descriptor_type.hpp>
 #include <clinok/utils.hpp>
 
 namespace CLINOK_NAMESPACE_NAME {
@@ -67,21 +71,26 @@ using namespace ::clinok;
       return true;                                                       \
     }                                                                    \
   };
+
 #define ENUM(NAME, DESCRIPTION, ...)                                                                       \
   struct NAME##_o {                                                                                        \
+    using value_type = std::conditional_t<std::is_integral_v<decltype((__VA_ARGS__))>, std::int_least64_t, \
+                                          std::string_view>;                                               \
+    static constexpr auto values = std::to_array<value_type>({__VA_ARGS__});                               \
+                                                                                                           \
     static consteval std::string_view name() {                                                             \
       return #NAME;                                                                                        \
     }                                                                                                      \
+                                                                                                           \
     static consteval std::string_view description() {                                                      \
       (void)"" DESCRIPTION; /*validate description is a string literal*/                                   \
-      return "one of: [" #__VA_ARGS__ "] " DESCRIPTION;                                                    \
+      return DESCRIPTION;                                                                                  \
     }                                                                                                      \
-    static constexpr auto values = std::to_array({__VA_ARGS__});                                           \
-    using value_type = std::conditional_t<std::is_integral_v<decltype((__VA_ARGS__))>, std::int_least64_t, \
-                                          std::string_view>;                                               \
+                                                                                                           \
     static constexpr auto& get(auto& x) {                                                                  \
       return x.NAME;                                                                                       \
     }                                                                                                      \
+                                                                                                           \
     static constexpr bool has_default() noexcept {                                                         \
       return true;                                                                                         \
     }                                                                                                      \
@@ -92,72 +101,161 @@ using namespace ::clinok;
   struct NAME##_o {                                                                   \
     using value_type = NAME##_e;                                                      \
     using enum NAME##_e;                                                              \
-    static consteval std::string_view name() {                                        \
-      return #NAME;                                                                   \
-    }                                                                                 \
-    static consteval std::string_view description() {                                 \
-      (void)"" DESCRIPTION; /*validate description is a string literal*/              \
-      return "one of: [" #__VA_ARGS__ "] " DESCRIPTION;                               \
-    }                                                                                 \
+                                                                                      \
     static constexpr auto values = std::to_array({__VA_ARGS__});                      \
     static constexpr auto values_count = noexport::count_enum_entities(#__VA_ARGS__); \
                                                                                       \
     static constexpr std::array<std::string_view, values_count> names =               \
         noexport::split_enum<values_count>(#__VA_ARGS__);                             \
+                                                                                      \
+    static consteval std::string_view name() {                                        \
+      return #NAME;                                                                   \
+    }                                                                                 \
+                                                                                      \
+    static consteval std::string_view description() {                                 \
+      (void)"" DESCRIPTION; /*validate description is a string literal*/              \
+      return DESCRIPTION;                                                             \
+    }                                                                                 \
+                                                                                      \
     static constexpr auto& get(auto& x) {                                             \
       return x.NAME;                                                                  \
     }                                                                                 \
+                                                                                      \
     static constexpr bool has_default() noexcept {                                    \
       return true;                                                                    \
     }                                                                                 \
-  };
+  };                                                                                  \
+                                                                                      \
+  constexpr std::string_view to_string_view(NAME##_e e) {                             \
+    auto idx = (size_t)e;                                                             \
+    if (idx >= NAME##_o::names.size())                                                \
+      throw std::runtime_error("Unknown enum value ");                                \
+    return NAME##_o::names[idx];                                                      \
+  }
 
 #include <clinok/generate.hpp>
 
 #undef DD_CLI_STR
 #undef DD_CLI_STRdefault
 
-namespace noexport {
+}  // namespace CLINOK_NAMESPACE_NAME
 
-using all_options = clinok::typelist<::clinok::noexport::null_option
-#define OPTION(type, name, ...) , name##_o
-#define ENUM(name, ...) , name##_o
-#include <clinok/generate.hpp>
-                                     >;
+namespace clinok {
 
-}  // namespace noexport
+#define OPTION(...)
 
-template <typename Option>
-struct is_required_option : std::bool_constant<!Option::has_default()> {};
+#define ENUM(NAME, DESCRIPTION, ...)                                                                      \
+  template <>                                                                                             \
+  struct descriptor_field<CLINOK_NAMESPACE_NAME::NAME##_o>                                                \
+      : default_descriptor_field<CLINOK_NAMESPACE_NAME::NAME##_o> {                                       \
+    using O = CLINOK_NAMESPACE_NAME::NAME##_o;                                                            \
+    using value_type = O::value_type;                                                                     \
+    static constexpr auto values = O::values;                                                             \
+                                                                                                          \
+    constexpr static std::string_view placeholder() {                                                     \
+      return descriptor_type<value_type>::placeholder();                                                  \
+    }                                                                                                     \
+                                                                                                          \
+    constexpr static bool has_possible_values() {                                                         \
+      return true;                                                                                        \
+    }                                                                                                     \
+                                                                                                          \
+    static std::string possible_values_desc() {                                                           \
+      auto to_string = []<typename T>(const T& value) {                                                   \
+        if constexpr (std::is_same_v<T, std::string_view>) {                                              \
+          return value;                                                                                   \
+        } else {                                                                                          \
+          return std::to_string(value);                                                                   \
+        }                                                                                                 \
+      };                                                                                                  \
+      std::string result = "[";                                                                           \
+      auto it = values.begin(), end = values.end();                                                       \
+      if (it != end)                                                                                      \
+        result += to_string(*it++);                                                                       \
+      for (; it != end; it++) {                                                                           \
+        result.append(", ").append(to_string(*it));                                                       \
+      }                                                                                                   \
+      result += "]";                                                                                      \
+      return result;                                                                                      \
+    }                                                                                                     \
+                                                                                                          \
+    static args_t::iterator parse(args_t::iterator it, args_t::iterator end, value_type& out, errc& er) { \
+      if (it == end) {                                                                                    \
+        er = errc::argument_missing;                                                                      \
+        return it;                                                                                        \
+      }                                                                                                   \
+      it = descriptor_type<value_type>::parse(it, end, out, er);                                          \
+      if (er != errc::ok || std::find(values.begin(), values.end(), out) == values.end()) {               \
+        er = errc::invalid_argument;                                                                      \
+      }                                                                                                   \
+      return it;                                                                                          \
+    }                                                                                                     \
+  };
+
+#define STRING_ENUM(NAME, DESCRIPTION, ...)                                                  \
+  template <>                                                                                \
+  struct descriptor_type<CLINOK_NAMESPACE_NAME::NAME##_e> : default_descriptor_type {        \
+    using enum CLINOK_NAMESPACE_NAME::NAME##_e;                                              \
+    using O = CLINOK_NAMESPACE_NAME::NAME##_o;                                               \
+    static constexpr auto values = O::values;                                                \
+    static constexpr auto names = O::names;                                                  \
+                                                                                             \
+    constexpr static std::string_view placeholder() {                                        \
+      return "<string>";                                                                     \
+    }                                                                                        \
+                                                                                             \
+    constexpr static bool has_possible_values() {                                            \
+      return true;                                                                           \
+    }                                                                                        \
+                                                                                             \
+    static std::string possible_values_desc() {                                              \
+      std::string result = "[";                                                              \
+      auto it = values.begin(), end = values.end();                                          \
+      if (it != end)                                                                         \
+        result += to_string_view(*it++);                                                     \
+      for (; it != end; it++) {                                                              \
+        result.append(", ").append(to_string_view(*it));                                     \
+      }                                                                                      \
+      result += "]";                                                                         \
+      return result;                                                                         \
+    }                                                                                        \
+                                                                                             \
+    static args_t::iterator parse(args_t::iterator it, args_t::iterator end,                 \
+                                  CLINOK_NAMESPACE_NAME::NAME##_e& out, errc& er) {          \
+      if (it == end) {                                                                       \
+        er = errc::argument_missing;                                                         \
+        return it;                                                                           \
+      }                                                                                      \
+      std::string_view raw_arg = std::string_view(*it);                                      \
+      if (auto it_f = std::find(names.begin(), names.end(), raw_arg); it_f != names.end()) { \
+        std::size_t i = it_f - begin(names);                                                 \
+        out = values[i];                                                                     \
+      } else {                                                                               \
+        er = errc::invalid_argument;                                                         \
+      }                                                                                      \
+      return ++it;                                                                           \
+    }                                                                                        \
+  };
 
 #define REQUIRED(NAME) \
   template <>          \
-  struct is_required_option<NAME##_o> : std::true_type {};
+  struct is_required_option<CLINOK_NAMESPACE_NAME::NAME##_o> : std::true_type {};
+
 #include <clinok/generate.hpp>
+}  // namespace clinok
 
-constexpr inline bool allow_additional_args = 0
-#define ALLOW_ADDITIONAL_ARGS +1
+namespace CLINOK_NAMESPACE_NAME {
+
+struct cli_t {
+  using all_options = clinok::noexport::all_options_impl<::clinok::noexport::null_option
+#define OPTION(type, name, ...) , name##_o
+#define ENUM(name, ...) , name##_o
 #include <clinok/generate.hpp>
-    ;
+                                                         >;
 
-// passes empty option description object to 'foo'
-constexpr void for_each_option(auto foo) {
-  [&]<typename... Options>(clinok::typelist<::clinok::noexport::null_option, Options...>) {
-    (foo(Options{}), ...);
-  }(noexport::all_options{});
-}
-
-// passes all options as empty option description objects to 'foo'
-constexpr decltype(auto) apply_to_options(auto foo) {
-  return [&]<typename... Options>(
-             clinok::typelist<::clinok::noexport::null_option, Options...>) -> decltype(auto) {
-    return foo(Options{}...);
-  }(noexport::all_options{});
-}
-
-struct options {
-  // zero initialization if no default here, but 'parse' should return error if no value provided for option
-  // without default value
+  struct options {
+    // zero initialization if no default here, but 'parse' should return error if no value provided for option
+    // without default value
 
 #define DD_CLI = {}
 #define DD_CLIdefault(...) = __VA_ARGS__
@@ -167,293 +265,86 @@ struct options {
 #define ENUM(name, description, ...) name##_o ::value_type name = name##_o::values[0];
 #define STRING_ENUM(name, description, ...) name##_o ::value_type name = name##_o::values[0];
 #define INTEGER(name, description, ...) std::int_least64_t name DD_CLI##__VA_ARGS__;
+#define OPTION(type, name, description, ...) type name DD_CLI##__VA_ARGS__;
 #define ALLOW_ADDITIONAL_ARGS std::vector<std::string_view> additional_args;
 #include <clinok/generate.hpp>
 
 #undef DD_CLI
 #undef DD_CLIdefault
 
-  constexpr auto print_to(auto out) {
-    for_each_option([&](auto o) {
-      out(o.name()), out(" = ");
-      constexpr bool int_like = requires { o.get(*this) == 42; };
-      int_like ? void() : (void)out('\"');
-      out(o.get(*this));
-      int_like ? void() : (void)out('\"');
-      out('\n');
-    });
-    return std::move(out);
-  }
-};
+    constexpr auto print_to(auto out) {
+      for_each_option([&](auto o) {
+        out(o.name()), out(" = ");
+        constexpr bool int_like = requires { o.get(*this) == 42; };
+        int_like ? void() : (void)out('\"');
+        out(o.get(*this));
+        int_like ? void() : (void)out('\"');
+        out('\n');
+      });
+      return std::move(out);
+    }
+  };
 
-// contains 'bool' fields for checking if option present during parse
-struct presented_options {
-  // zero initialization if no default here, but 'parse' should return error if no value provided for option
-  // without default value
+  // contains 'bool' fields for checking if option present during parse
+  struct presented_options {
+    // zero initialization if no default here, but 'parse' should return error if no value provided for option
+    // without default value
 
 #define OPTION(type, name, ...) bool name = false;
 #define ENUM(name, ...) bool name = false;
 
 #include <clinok/generate.hpp>
-};
-
-consteval bool has_option(std::string_view name) {
-  return apply_to_options([&](auto... opts) { return ((opts.name() == name) || ...); });
-}
-
-// accepts function which acceps std::string_view to out
-template <typename Out>
-inline Out print_help_message_to(Out out) noexcept {
-  out("\n");
-  auto option_arg_str = []<typename O>(O) {
-    if (std::is_same_v<typename O::value_type, std::string_view>)
-      return "<string>";
-    else if (std::is_same_v<typename O::value_type, bool>)
-      return "<bool>";
-    else if (std::is_integral_v<typename O::value_type>)
-      return "<int>";
-    else
-      return "";
   };
-  auto option_string_len = [&](auto o) -> size_t {
-    return sizeof("--") + o.name().size() + std::strlen(option_arg_str(o));
-  };
-  std::size_t largest_help_string =
-      apply_to_options([&](auto... opts) { return std::max({size_t(0), option_string_len(opts)...}); });
-  for_each_option([&](auto o) {
-    out(" --"), out(o.name()), out(' '), out(option_arg_str(o));
-    const int whitespace_count = 2 + largest_help_string - option_string_len(o);
-    for (int i = 0; i < whitespace_count; ++i)
-      out(' ');
-    out(o.description()), out('\n');
-  });
-#define ALIAS(a, b) out(" -"), out(#a), out(" is an alias to "), out(#b), out('\n');
-#define OPTION(...)
-#include <clinok/generate.hpp>
-  return std::move(out);
-}
 
-// assumes first arg as program name
-constexpr options parse(args_t args, error_code& ec) noexcept {
-  options o;
-  presented_options po;
-
-  auto set_error = [&](std::string_view typed, errc what, std::string_view resolved) {
-    ec.set_error(what, context{std::string(typed), std::string(resolved)});
-  };
-  auto try_parse = [&](auto it, auto& option_value) -> errc {
-    if (it == args.end())
-      return errc::argument_missing;
-    return from_cli(std::string_view(*it), option_value);
-  };
-  for (auto it = args.begin(); it != args.end(); ++it) {
-    std::string_view typed = *it;
-    std::string_view s = *it;
-
-    if (s == "-" || s == "--") {
-      set_error(typed, errc::option_missing, "");
-      return o;
-    }
-
-    if (s.starts_with("--")) {
-      s.remove_prefix(2);
-    } else if (s.starts_with('-')) {
-      s.remove_prefix(1);
-      constexpr auto aliases = std::to_array({
-          // dummy value for handling case when there are no aliases
-          std::pair<std::string_view, std::string_view>("", ""),
+  static constexpr auto aliases = noexport::drop_dummy(std::to_array({
+      // dummy value for handling case when there are no aliases
+      std::pair<std::string_view, std::string_view>("", ""),
 #define ALIAS(a, b) std::pair<std::string_view, std::string_view>{#a, #b},
 #define OPTION(...)
 #include <clinok/generate.hpp>
-      });
-      if (auto it2 = std::find_if(std::begin(aliases) + 1 /*dummy*/, std::end(aliases),
-                                  [&](auto& x) { return x.first == s; });
-          it2 != std::end(aliases)) {
-        s = it2->second;
-      } else {
-        set_error(typed, errc::unknown_option, s);
-        return o;
-      }
-    } else {
-      if constexpr (!allow_additional_args) {
-        set_error(typed, errc::disallowed_free_arg, s);
-        return o;
-      } else {
-        // prevent compile time error
-        [&](auto&& o) {
-          if constexpr (allow_additional_args)
-            o.additional_args.push_back(typed);
-        }(o);
-        continue;
-      }
-    }
-#define TAG(name, ...)                \
-  if (s == std::string_view(#name)) { \
-    o.name = true;                    \
-    po.name = true;                   \
-    continue;                         \
-  }
-#define STRING(name, ...)                                    \
-  if (s == std::string_view(#name)) {                        \
-    po.name = true;                                          \
-    if (errc ec = try_parse(++it, o.name); ec != errc::ok) { \
-      set_error(typed, ec, s);                               \
-      return o;                                              \
-    }                                                        \
-    continue;                                                \
-  }
-#define ENUM(name, ...)                                                 \
-  if (s == std::string_view(#name)) {                                   \
-    po.name = true;                                                     \
-    if (errc ec = try_parse(++it, o.name); ec != errc::ok) {            \
-      set_error(typed, ec, s);                                          \
-      return o;                                                         \
-    }                                                                   \
-    constexpr auto& values = name##_o ::values;                         \
-    if (std::find(begin(values), end(values), o.name) == end(values)) { \
-      set_error(typed, errc::impossible_enum_value, s);                 \
-      return o;                                                         \
-    }                                                                   \
-    continue;                                                           \
-  }
-#define STRING_ENUM(name, ...)                                                    \
-  if (s == std::string_view(#name)) {                                             \
-    po.name = true;                                                               \
-    std::string_view value;                                                       \
-    if (errc ec = try_parse(++it, value); ec != errc::ok) {                       \
-      set_error(typed, ec, s);                                                    \
-      return o;                                                                   \
-    }                                                                             \
-    constexpr auto& names = name##_o ::names;                                     \
-    constexpr auto& values = name##_o ::values;                                   \
-    if (auto it = std::find(begin(names), end(names), value); it != end(names)) { \
-      std::size_t i = it - begin(names);                                          \
-      o.name = values[i];                                                         \
-    } else {                                                                      \
-      set_error(typed, errc::impossible_enum_value, s);                           \
-      return o;                                                                   \
-    }                                                                             \
-    continue;                                                                     \
-  }
-#define INTEGER(...) STRING(__VA_ARGS__)
-#define BOOLEAN(...) STRING(__VA_ARGS__)
+  }));
+
+  static constexpr bool allow_additional_args = 0
+#define ALLOW_ADDITIONAL_ARGS +1
 #include <clinok/generate.hpp>
+      ;
+};
 
-    // if 'continue' not reached
-    set_error(typed, errc::unknown_option, s);
-    return o;
-  }  // parse loop end
+using options = cli_t::options;
+using presented_options = cli_t::presented_options;
+using all_options = cli_t::all_options;
+inline constexpr bool allow_additional_args = cli_t::allow_additional_args;
+constexpr auto aliases = cli_t::aliases;
 
-  for_each_option([&]<typename O>(O o) {
-    // is required and not present in arg list
-    if constexpr (is_required_option<O>::value) {
-      if (!o.get(po))
-        set_error(o.name(), errc::required_option_not_present, o.name());
-    }
-  });
-  return o;
+template <CLI_like CLI = cli_t, typename Out>
+inline Out print_help_message_to(Out out) {
+  return clinok::print_help_message_to<CLI>(out);
 }
 
+template <CLI_like CLI = cli_t>
+constexpr typename CLI::options parse(args_t args, error_code& ec) noexcept {
+  return clinok::parse<CLI>(args, ec);
+}
+
+template <CLI_like CLI = cli_t>
 // assumes first arg as program name
-inline options parse(int argc, char* argv[], error_code& ec) noexcept {
-  assert(argc >= 0);
-  options o = parse(args_range(argc, argv), ec);
-  if (o.help) {
-    print_help_message_to([](auto s) { std::cout << s; });
-    std::flush(std::cout);
-    std::exit(0);
-  }
-  return o;
+inline typename CLI::options parse(int argc, char* argv[], error_code& ec) noexcept {
+  return clinok::parse<CLI>(argc, argv, ec);
 }
 
-template <typename Out>
+template <CLI_like CLI = cli_t, typename Out>
 constexpr Out print_err_to(const error_code& err, Out out) {
-  if (err.what == errc::ok)
-    return std::move(out);
-  if (err.what == errc::option_missing) {
-    out("option name is missing, \"");
-    out(err.ctx.typed);
-    out("\" used instead");
-    return std::move(out);
-  }
-  if (err.what == errc::required_option_not_present) {
-    out("required option \"");
-    // its not from arguments, 'parse' should set it to correct missing option
-    out(err.ctx.resolved_name);
-    out("\" is missing\n");
-    return std::move(out);
-  }
-  out(errc2str(err.what));
-  if (err.what != errc::unknown_option && err.what != errc::disallowed_free_arg)  // for better error message
-    out(" when parsing \"");
-  else
-    out(" \"");
-  out(err.ctx.typed);
-  out("\"");
-  if (err.ctx.typed.starts_with("-") && !err.ctx.typed.starts_with("--")) {
-    out(" resolved as \"--");
-    out(err.ctx.resolved_name);
-    out("\"");
-  }
-  switch (err.what) {
-    case errc::impossible_enum_value:
-      for_each_option([&](auto o) {
-        if constexpr (requires { o.names; }) {
-          if (o.name() == err.ctx.resolved_name) {
-            out(". Possible values are: ");
-            for (auto& x : o.names)
-              out(x), out(' ');
-          }
-        } else if constexpr (requires { o.values; }) {
-          if (o.name() == err.ctx.resolved_name) {
-            out(". Possible values are: ");
-            for (auto& x : o.values)
-              out(x), out(' ');
-          }
-        }
-      });
-      break;
-    case errc::unknown_option: {
-      std::vector<std::string> optionnames;
-#define OPTION(type, name, ...) optionnames.push_back("--" #name);
-#define ENUM(name, ...) optionnames.push_back("--" #name);
-#define ALIAS(name, ...) optionnames.push_back("-" #name);
-#include <clinok/generate.hpp>
-
-      auto [str, diff] = clinok::best_match_str(err.ctx.typed, optionnames);
-      if (diff < 5) {  // heuristic about misspelling
-        out(" you probably meant \"");
-        out(str);
-        if (str.starts_with("--"))
-          out("\" option");
-        else
-          out("\" alias");
-      }
-      break;
-    }
-    default:
-      break;
-  }
-  out("\n");
-  return std::move(out);
+  return clinok::print_err_to<CLI>(err, out);
 }
 
+template <clinok::CLI_like CLI = cli_t>
 void print_err(const error_code& err, std::ostream& out = std::cerr) {
-  print_err_to(err, [&](auto&& x) { out << x; });
+  return clinok::print_err<CLI>(err, out);
 }
 
-// assumes first arg as program name
-// parses args, dumps error and terminates program if error occured
-inline options parse_or_exit(int argc, char* argv[]) {
-  error_code ec;
-  options o = parse(argc, argv, ec);
-  if (ec) {
-    std::cerr << '\n';
-    print_err(ec);
-    std::endl(std::cerr);
-    std::exit(1);
-  }
-  return o;
+template <clinok::CLI_like CLI = cli_t>
+inline typename CLI::options parse_or_exit(int argc, char* argv[]) {
+  return clinok::parse_or_exit<CLI>(argc, argv);
 }
 
 }  // namespace CLINOK_NAMESPACE_NAME

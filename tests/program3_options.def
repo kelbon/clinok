@@ -1,0 +1,9 @@
+STRING_ENUM(log_level, "Verbosity level", trace, debug, info, warn, error)
+INTEGER(timeout, "Request timeout in seconds", default(10))
+STRING(user, "User name")
+OPTION(Point, location, "Custom type: point x,y", default(Point{0,0}))
+
+REQUIRED(user)
+
+ALIAS(l, log-level)
+ALIAS(t, timeout)
