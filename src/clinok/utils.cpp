@@ -151,41 +151,14 @@ double damerau_levenshtein_distance(std::string_view a, std::string_view b) {
   return prev_row[n];
 }
 
-errc from_cli(std::string_view raw_arg, std::string_view& s) noexcept {
-  s = raw_arg;
-  return errc::ok;
-}
-errc from_cli(std::string_view raw_arg, std::int_least64_t& s) noexcept {
-  auto [_, ec] = std::from_chars(raw_arg.data(), raw_arg.data() + raw_arg.size(), s);
-  if (ec != std::errc{})
-    return errc::not_a_number;
-  return errc::ok;
-}
-errc from_cli(std::string_view raw_arg, bool& b) noexcept {
-  if (raw_arg == "on" || raw_arg == "ON" || raw_arg == "1" || raw_arg == "yes" || raw_arg == "YES" ||
-      raw_arg == "true") {
-    b = true;
-    return errc::ok;
-  } else if (raw_arg == "off" || raw_arg == "OFF" || raw_arg == "0" || raw_arg == "no" || raw_arg == "NO" ||
-             raw_arg == "false") {
-    b = false;
-    return errc::ok;
-  }
-  return errc::invalid_argument;
-}
-
 std::string_view errc2str(errc e) noexcept {
   switch (e) {
-    case errc::arg_parsing_error:
-      return "arg parsing error";
     case errc::invalid_argument:
       return "invalid argument";
     case errc::argument_missing:
       return "argument missing";
     case errc::unknown_option:
       return "unknown option";
-    case errc::impossible_enum_value:
-      return "impossible enum value";
     case errc::not_a_number:
       return "not a number";
     case errc::required_option_not_present:

@@ -1,13 +1,13 @@
 #pragma once
 
 #include <algorithm>
-#include <iostream>
-#include <string_view>
-#include <span>
 #include <cassert>
-#include <string>
-#include <limits>
 #include <cstdint>
+#include <iostream>
+#include <limits>
+#include <string>
+#include <span>
+#include <string_view>
 
 namespace clinok {
 
@@ -50,12 +50,10 @@ struct context {
 
 enum struct errc {
   ok,
-  option_missing,     // invalid - or -- without option name
-  argument_missing,   // option reqires arg and it is missing
-  arg_parsing_error,  // from_cli(string_view, option&) returns 'false'
-  invalid_argument,   // argument is presented, but its invalid (not in enum or not bool etc)
-  unknown_option,     // unknown option parsed
-  impossible_enum_value,
+  option_missing,    // invalid - or -- without option name
+  argument_missing,  // option reqires arg and it is missing
+  invalid_argument,  // argument is presented, but its invalid (not in enum or not bool etc)
+  unknown_option,    // unknown option parsed
   // if arg without - or -- passed and ALLOW_ADDITIONAL_ARGS not present in declarations file
   disallowed_free_arg,
   not_a_number,                 // parse int argument impossible
@@ -95,6 +93,9 @@ struct typelist {};
 namespace noexport {
 
 struct null_option {};
+
+template <typename, typename... Options>
+using all_options_impl = clinok::typelist<Options...>;
 
 consteval std::size_t count_enum_entities(std::string_view values) {
   if (std::count(values.begin(), values.end(), '=') > 1)
@@ -143,11 +144,15 @@ consteval std::array<std::string_view, N> split_enum(std::string_view values) {
   return result;
 }
 
-}  // namespace noexport
+template <typename T, std::size_t N>
+constexpr auto drop_dummy(const std::array<T, N>& from) {
+  constexpr std::size_t K = N > 0 ? N - 1 : 0;
+  std::array<T, K> res;
+  std::copy(from.begin() + N - K, from.end(), res.begin());
+  return res;
+}
 
-errc from_cli(std::string_view raw_arg, std::string_view& s) noexcept;
-errc from_cli(std::string_view raw_arg, std::int_least64_t& s) noexcept;
-errc from_cli(std::string_view raw_arg, bool& b) noexcept;
+}  // namespace noexport
 
 // assumes first arg as program name, second arg as subprogram name
 // like 'git status' and selects by name.
