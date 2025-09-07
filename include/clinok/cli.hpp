@@ -185,6 +185,13 @@ inline Out print_help_message_to(Out out) noexcept {
   return std::move(out);
 }
 
+template <CLI_like CLI>
+[[nodiscard]] constexpr bool has_alias(std::string_view name) {
+  auto it = std::ranges::find_if(CLI::aliases, [&](auto& x) { return x.first == name; });
+  using std::end;
+  return it != end(CLI::aliases);
+}
+
 // returns resolved option name or empty string if no such alias
 template <CLI_like CLI>
 [[nodiscard]] constexpr std::string_view resolve_alias(std::string_view alias) {
@@ -194,9 +201,7 @@ template <CLI_like CLI>
     if (has_option<CLI>(it->second))
       return it->second;
     else {
-      // has_alias (it->second)
-      auto ait = std::ranges::find_if(CLI::aliases, [&](auto& x) { return x.first == it->second; });
-      if (ait != end(CLI::aliases))
+      if (has_alias<CLI>(it->second))
         return resolve_alias<CLI>(it->second);
       else
         return "";
@@ -243,6 +248,78 @@ constexpr bool validate_aliases() {
   if (it != end(aliases))
     throw +"two aliases with same name resolved to different options";
   return true;
+}
+
+template <CLI_like CLI, typename Out>
+constexpr Out print_err_to(const error_code& err, Out out) {
+  if (err.what == errc::ok)
+    return std::move(out);
+  if (err.what == errc::option_missing) {
+    out("option name is missing, \"");
+    out(err.ctx.typed);
+    out("\" used instead");
+    return std::move(out);
+  }
+  if (err.what == errc::required_option_not_present) {
+    out("required option \"");
+    // its not from arguments, 'parse' should set it to correct missing option
+    out(err.ctx.resolved_name);
+    out("\" is missing\n");
+    return std::move(out);
+  }
+  out(e2str(err.what));
+  if (err.what != errc::unknown_option && err.what != errc::disallowed_free_arg)  // for better error message
+    out(" when parsing \"");
+  else
+    out(" \"");
+  out(err.ctx.typed);
+  out("\"");
+  if (err.ctx.typed.starts_with("-") && !err.ctx.typed.starts_with("--")) {
+    out(" resolved as \"--");
+    out(err.ctx.resolved_name);
+    out("\"");
+  }
+  switch (err.what) {
+    case errc::invalid_argument:
+      for_each_option<CLI>([&]<typename O>(O o) {
+        if constexpr (has_possible_values_description(O{})) {
+          if (name_of<O> == err.ctx.resolved_name) {
+            out(". Possible values are: ");
+            out(possible_values_description(o));
+          }
+        }
+      });
+      break;
+    case errc::unknown_option: {
+      std::vector<std::string> optionnames;
+      for_each_option<CLI>(
+          [&]<typename O>(O o) { optionnames.push_back(std::string("--").append(name_of<O>)); });
+
+      for (auto [a, _] : CLI::aliases) {
+        optionnames.push_back(std::string("-").append(a));
+      }
+
+      auto [str, diff] = clinok::best_match_str(err.ctx.typed, optionnames);
+      if (diff < 5) {  // heuristic about misspelling
+        out(" you probably meant \"");
+        out(str);
+        if (str.starts_with("--"))
+          out("\" option");
+        else
+          out("\" alias");
+      }
+      break;
+    }
+    default:
+      break;
+  }
+  out('\n');
+  return std::move(out);
+}
+
+template <typename CLI>
+void print_err(const error_code& err, std::ostream& out = std::cerr) {
+  print_err_to<CLI>(err, [&](auto&& x) { out << x; });
 }
 
 // assumes first arg as program name
@@ -342,80 +419,28 @@ inline typename CLI::options parse(int argc, char* argv[], error_code& ec) noexc
     print_help_message_to<CLI>([](auto s) { std::cout << s; });
     std::flush(std::cout);
     std::exit(0);
+  } else if (ec) {
+    // skip program name
+    bool help_found = false;
+    for (std::string_view a : args_range(argc - 1, argv + 1)) {
+      if (a == "--help") {
+        help_found = true;
+        break;
+      }
+      if (a.starts_with('-') && !a.starts_with("--"))
+        a.remove_prefix(1);
+      if (has_alias<CLI>(a) && resolve_alias<CLI>(a) == "help") {
+        help_found = true;
+        break;
+      }
+    }
+    if (help_found) {
+      print_help_message_to<CLI>([](auto s) { std::cout << s; });
+      std::flush(std::cout);
+      std::exit(EXIT_FAILURE);
+    }
   }
   return o;
-}
-
-template <CLI_like CLI, typename Out>
-constexpr Out print_err_to(const error_code& err, Out out) {
-  if (err.what == errc::ok)
-    return std::move(out);
-  if (err.what == errc::option_missing) {
-    out("option name is missing, \"");
-    out(err.ctx.typed);
-    out("\" used instead");
-    return std::move(out);
-  }
-  if (err.what == errc::required_option_not_present) {
-    out("required option \"");
-    // its not from arguments, 'parse' should set it to correct missing option
-    out(err.ctx.resolved_name);
-    out("\" is missing\n");
-    return std::move(out);
-  }
-  out(e2str(err.what));
-  if (err.what != errc::unknown_option && err.what != errc::disallowed_free_arg)  // for better error message
-    out(" when parsing \"");
-  else
-    out(" \"");
-  out(err.ctx.typed);
-  out("\"");
-  if (err.ctx.typed.starts_with("-") && !err.ctx.typed.starts_with("--")) {
-    out(" resolved as \"--");
-    out(err.ctx.resolved_name);
-    out("\"");
-  }
-  switch (err.what) {
-    case errc::invalid_argument:
-      for_each_option<CLI>([&]<typename O>(O o) {
-        if constexpr (has_possible_values_description(O{})) {
-          if (name_of<O> == err.ctx.resolved_name) {
-            out(". Possible values are: ");
-            out(possible_values_description(o));
-          }
-        }
-      });
-      break;
-    case errc::unknown_option: {
-      std::vector<std::string> optionnames;
-      for_each_option<CLI>(
-          [&]<typename O>(O o) { optionnames.push_back(std::string("--").append(name_of<O>)); });
-
-      for (auto [a, _] : CLI::aliases) {
-        optionnames.push_back(std::string("-").append(a));
-      }
-
-      auto [str, diff] = clinok::best_match_str(err.ctx.typed, optionnames);
-      if (diff < 5) {  // heuristic about misspelling
-        out(" you probably meant \"");
-        out(str);
-        if (str.starts_with("--"))
-          out("\" option");
-        else
-          out("\" alias");
-      }
-      break;
-    }
-    default:
-      break;
-  }
-  out('\n');
-  return std::move(out);
-}
-
-template <typename CLI>
-void print_err(const error_code& err, std::ostream& out = std::cerr) {
-  print_err_to<CLI>(err, [&](auto&& x) { out << x; });
 }
 
 // assumes first arg as program name

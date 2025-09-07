@@ -219,5 +219,15 @@ inline options parse_or_exit(int argc, char* argv[]) {
 
 }  // namespace CLINOK_NAMESPACE_NAME
 
+namespace clinok {
+
+#define RENAME(OLDNAME, NEWNAME) \
+  template <>                    \
+  constexpr inline std::string_view name_of<::CLINOK_NAMESPACE_NAME::OLDNAME##_o> = NEWNAME;
+
+#include <clinok/generate.hpp>
+
+}  // namespace clinok
+
 #undef program_options_file
 #undef CLINOK_NAMESPACE_NAME

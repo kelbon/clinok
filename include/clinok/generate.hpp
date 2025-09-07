@@ -31,6 +31,10 @@
   #define ALLOW_ADDITIONAL_ARGS
 #endif
 
+#ifndef RENAME
+  #define RENAME(OLDNAME, NEWNAME)
+#endif
+
 #include program_options_file
 TAG(help, "list of all options")
 
@@ -42,3 +46,4 @@ TAG(help, "list of all options")
 #undef ALIAS
 #undef ALLOW_ADDITIONAL_ARGS
 #undef DECLARE_STRING_ENUM
+#undef RENAME
