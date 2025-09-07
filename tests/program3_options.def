@@ -1,9 +1,8 @@
-STRING_ENUM(log_level, "Verbosity level", trace, debug, info, warn, error)
-INTEGER(timeout, "Request timeout in seconds", default(10))
+DECLARE_STRING_ENUM(log_level_e, trace, debug, info, warn, error)
+OPTION(log_level_e, log_level, "Verbosity level", default("trace"))
+INTEGER(timeout, "Request timeout in seconds", default("10"))
 STRING(user, "User name")
-OPTION(Point, location, "Custom type: point x,y", default(Point{0,0}))
-
-REQUIRED(user)
+OPTION(Point, location, "Custom type: point x,y", default("0", "0"))
 
 ALIAS(l, log-level)
 ALIAS(t, timeout)

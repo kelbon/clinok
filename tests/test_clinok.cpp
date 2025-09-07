@@ -17,16 +17,32 @@
 #include <iostream>
 #include <sstream>
 #include <tuple>
+#include <algorithm>
 
 void on_error(int line) {
   std::cout << "ERROR ON LINE " << line;
   std::exit(line);
 }
 
+static std::pair<std::string_view, std::string_view> diff(std::string_view a, std::string_view b) {
+  auto [it1, it2] = std::ranges::mismatch(a, b);
+  return {std::string_view(it1, a.end()), std::string_view(it2, b.end())};
+}
+
+#define error_if(...) \
+  if ((__VA_ARGS__))  \
+  on_error(__LINE__)
+
+#define assert_eq(a, b)                                                                                      \
+  if (a != b) {                                                                                              \
+    std::cout << "EXPECTED \"" << a << "\" BUT ACTUAL IS \"" << b << "\"" << std::endl;                      \
+    std::cout << "DIFF: \"" << diff(a, b).first << "\"\n AND \n\"" << diff(a, b).second << '"' << std::endl; \
+    error_if(true);                                                                                          \
+  }
+
 bool operator==(const cli1::options& lhs, const cli1::options& rhs) {
   auto t = [](const cli1::options& o) {
-    return std::tie(o.help, o.mytag, o.works, o.hello_world, o.myname, o.ABC2, o.abc, o.str_enum, o.myint,
-                    o.myint2, o.color);
+    return std::tie(o.help, o.mytag, o.works, o.hello_world, o.myname, o.ABC2, o.myint, o.myint2, o.color);
   };
 
   return t(lhs) == t(rhs);
@@ -34,7 +50,7 @@ bool operator==(const cli1::options& lhs, const cli1::options& rhs) {
 
 bool operator==(const cli2::options& lhs, const cli2::options& rhs) {
   auto t = [](const cli2::options& o) {
-    return std::tie(o.help, o.mytag, o.works, o.hello_world, o.myname, o.ABC2, o.str_enum, o.additional_args);
+    return std::tie(o.help, o.mytag, o.works, o.hello_world, o.myname, o.ABC2, o.additional_args);
   };
   return t(lhs) == t(rhs);
 }
@@ -46,35 +62,17 @@ bool operator==(const cli3::options& lhs, const cli3::options& rhs) {
   return t(lhs) == t(rhs);
 }
 
-#define error_if(...)   \
-  if ((__VA_ARGS__)) {  \
-    on_error(__LINE__); \
-  }
-
 void use(auto&&...) {
 }
 
 namespace clinok {
-template <>
-struct descriptor_field<cli3::log_level_o> : default_descriptor_field<cli3::log_level_o> {
-  consteval static std::string_view name() {
-    return "log-level";
-  }
-};
 
 template <>
-struct descriptor_field<cli3::timeout_o> : default_descriptor_field<cli3::timeout_o> {
-  constexpr static std::string_view placeholder() {
-    return "<seconds>";
-  }
-};
+constexpr std::string_view name_of<cli3::log_level_o> = "log-level";
 
 template <>
-struct descriptor_field<cli3::user_o> : default_descriptor_field<cli3::user_o> {
-  consteval static std::string_view description() {
-    return "Login user (REQUIRED)";
-  }
-};
+constexpr std::string_view placeholder_of<cli3::timeout_o> = "<seconds>";
+
 }  // namespace clinok
 
 void test_trim_ws() {
@@ -163,18 +161,17 @@ void test_parse1(std::vector<const char*> argv, clinok::errc expected_err, std::
   cli1::options o = cli1::parse(clinok::args_range(argv.size(), (char**)argv.data()), ec);
   if (expected_err != clinok::errc::ok)
     error_if(!ec);
-  error_if(ec.what != expected_err);
+  assert_eq(e2str(expected_err), e2str(ec.what));
   std::stringstream str;
   cli1::print_err_to(ec, [&](auto x) { str << x; });
   auto s = str.str();
-  error_if(s != expected_msg);
+  assert_eq(expected_msg, s);
 }
 
 void test_parse1_value(std::vector<const char*> argv, cli1::options expected) {
   clinok::error_code ec;
   cli1::options o = cli1::parse(clinok::args_range(argv.size(), (char**)argv.data()), ec);
   error_if(ec);
-
   error_if(o != expected);
 }
 
@@ -183,11 +180,11 @@ void test_parse2(std::vector<const char*> argv, clinok::errc expected_err, std::
   cli2::options o = cli2::parse(clinok::args_range(argv.size(), (char**)argv.data()), ec);
   if (expected_err != clinok::errc::ok)
     error_if(!ec);
-  error_if(ec.what != expected_err);
+  assert_eq(e2str(expected_err), e2str(ec.what));
   std::stringstream str;
   cli2::print_err_to(ec, [&](auto x) { str << x; });
   auto s = str.str();
-  error_if(s != expected_msg);
+  assert_eq(expected_msg, s);
 }
 
 void test_parse2_value(std::vector<const char*> argv, cli2::options expected) {
@@ -204,12 +201,11 @@ void test_parse3(std::vector<const char*> argv, clinok::errc expected_err, std::
   if (expected_err != clinok::errc::ok)
     error_if(!ec);
 
-  error_if(ec.what != expected_err);
-
+  assert_eq(e2str(expected_err), e2str(ec.what));
   std::stringstream str;
   cli3::print_err_to(ec, [&](auto x) { str << x; });
   auto s = str.str();
-  error_if(s != expected_msg);
+  assert_eq(expected_msg, s);
 }
 
 void test_parse3_value(std::vector<const char*> argv, cli3::options expected) {
@@ -228,7 +224,7 @@ void test_select_subprogram(std::vector<const char*> vecargs, std::string_view p
   std::stringstream ssm;
   int i = clinok::select_subprogram(argc, argv, progname, subprogram_names, ssm);
   auto msg = ssm.str();
-  error_if(msg != expected_msg);
+  assert_eq(expected_msg, msg);
   error_if(i != expected_index);
 }
 
@@ -246,27 +242,25 @@ std::string get_help() {
 // clang-format off
 constexpr std::string_view expected_help1 = R"(
  --mytag                 something
- --works <bool>          default: false, it works
+ --works <bool>          default: "false", it works
  --hello_world <string>  default: "hello, man", because, why not
  --myname <string>       default: "", fdsfdsfsddsfsdffdsfsireriteowireowroiewr
  --ABC2 <string>         default: "why", VERYmda
 
- --abc <int>             enum description. Possible values: [1, 2, 3, 4, 5]
- --str_enum <string>     enum str description. Possible values: [hello, world, float]
- --myint <int>           default: 17, myint description
+ --myint <int>           default: "17", myint description
  --myint2 <int>          myint2 without default
  --color <string>        description. Possible values: [red, green, blue, yellow]
  --help                  list of all options
  -h is an alias to help
  -w is an alias to works
- -hh is an alias to abc
+ -hh is an alias to myint
  -i is an alias to myint2
  -c is an alias to color
 )";
 
 constexpr std::string_view expected_help2 = R"(
  --mytag                 something
- --works <bool>          default: false, it works
+ --works <bool>          default: "false", it works
  --hello_world <string>  default: "hello, man", because, why not
  --myname <string>       fdsfdsfsddsfsdffdsfsireriteowireowroiewri
                       feworuiwerioewroieroiwr324032423044023eowur98
@@ -275,15 +269,14 @@ constexpr std::string_view expected_help2 = R"(
  --ABC2 <string>         default: "why", VERYLONG
 DESC FDISF ODF OFDOISE 
 
- --str_enum <string>     enum str description. Possible values: [hello, world, float]
  --help                  list of all options
 )";
 
 constexpr std::string_view expected_help3 = R"(
- --log-level <string>  Verbosity level. Possible values: [trace, debug, info, warn, error]
- --timeout <seconds>   default: 10, Request timeout in seconds
- --user <string>       Login user (REQUIRED)
- --location <x> <y>    default: Point{0,0}, Custom type: point x,y
+ --log-level <string>  default: "trace", Verbosity level. Possible values: [trace, debug, info, warn, error]
+ --timeout <seconds>   default: "10", Request timeout in seconds
+ --user <string>       User name
+ --location <x> <y>    default: ["0", "0"], Custom type: point x,y
  --help                list of all options
  -l is an alias to log-level
  -t is an alias to timeout
@@ -291,7 +284,147 @@ constexpr std::string_view expected_help3 = R"(
 
 // clang-format on
 
+using alias = std::pair<std::string_view, std::string_view>;
+struct A1 {
+  using all_options = clinok::typelist<>;
+  using options = void;
+  using presented_options = void;
+
+  static constexpr bool allow_additional_args = false;
+
+  static constexpr alias aliases[] = {{"a", "b"}};
+};
+
+namespace my {
+
+struct pseudooptionA {};
+struct pseudooptionB {};
+struct pseudooptionC {};
+
+}  // namespace my
+
+namespace clinok {
+
+template <>
+constexpr std::string_view name_of<my::pseudooptionA> = "a";
+
+template <>
+constexpr std::string_view name_of<my::pseudooptionB> = "b";
+
+template <>
+constexpr std::string_view name_of<my::pseudooptionC> = "c";
+
+}  // namespace clinok
+
+struct A2 : A1 {
+  using all_options = clinok::typelist<my::pseudooptionA>;
+};
+
+struct A3 : A1 {
+  using all_options = clinok::typelist<my::pseudooptionB>;
+};
+
+struct A4 : A1 {
+  static constexpr alias aliases[] = {{"", "b"}};
+};
+
+struct A5 : A1 {
+  static constexpr alias aliases[] = {{"a", ""}};
+};
+struct A6 : A1 {
+  using all_options = clinok::typelist<my::pseudooptionA, my::pseudooptionB, my::pseudooptionC>;
+  static constexpr alias aliases[] = {{"d", "b"}, {"abc", "b"}, {"fffdd", "a"}, {"d", "c"}};
+};
+
+struct A7 : A1 {
+  static constexpr alias aliases[] = {{"a", "a"}};
+};
+
+struct A8 : A1 {
+  using all_options = clinok::typelist<my::pseudooptionA, my::pseudooptionB, my::pseudooptionC>;
+  static constexpr alias aliases[] = {{"d", "b"}, {"abc", "b"},   {"fffdd", "a"},
+                                      {"d", "b"}, {"fffdd", "a"}, {"d", "a"}};
+};
+
+struct A9R : A1 {
+  using all_options = clinok::typelist<my::pseudooptionA, my::pseudooptionB, my::pseudooptionC>;
+  static constexpr alias aliases[] = {
+      {"d", "b"}, {"abc", "b"}, {"fffdd", "a"}, {"d", "b"}, {"fffdd", "a"}, {"dd", "d"},
+  };
+};
+
+void test_resolve_aliases() {
+  std::string_view s = clinok::resolve_alias<A9R>("alala");
+  assert_eq("", s);
+  s = clinok::resolve_alias<A9R>("d");
+  assert_eq("b", s);
+  s = clinok::resolve_alias<A9R>("dd");
+  // dd -> d -> b
+  assert_eq("b", s);
+  s = clinok::resolve_alias<A9R>("fffdd");
+  assert_eq("a", s);
+  s = clinok::resolve_alias<A9R>("abc");
+  assert_eq("b", s);
+}
+
+void test_validate_aliases() {
+  try {
+    clinok::validate_aliases<A1>();
+    error_if(true);
+  } catch (const char* p) {
+    assert_eq(std::string_view("bad alias, option do not exist"), p);
+  }
+  try {
+    clinok::validate_aliases<A2>();
+    error_if(true);
+  } catch (const char* p) {
+    assert_eq(std::string_view("bad alias, same name as option"), p);
+  }
+  try {
+    clinok::validate_aliases<A3>();
+  } catch (...) {
+    error_if(true);
+  }
+  try {
+    clinok::validate_aliases<A4>();
+    error_if(true);
+  } catch (const char* p) {
+    assert_eq(std::string_view("bad alias, empty string"), p);
+  }
+  try {
+    clinok::validate_aliases<A5>();
+    error_if(true);
+  } catch (const char* p) {
+    assert_eq(std::string_view("bad alias, resolves to empty"), p);
+  }
+  try {
+    clinok::validate_aliases<A6>();
+    error_if(true);
+  } catch (const char* p) {
+    assert_eq(std::string_view("two aliases with same name resolved to different options"), p);
+  }
+  try {
+    clinok::validate_aliases<A7>();
+    error_if(true);
+  } catch (const char* p) {
+    assert_eq(std::string_view("bad alias, resolves to itself"), p);
+  }
+  try {
+    clinok::validate_aliases<A8>();
+    error_if(true);
+  } catch (const char* p) {
+    assert_eq(std::string_view("two aliases with same name resolved to different options"), p);
+  }
+  try {
+    clinok::validate_aliases<A9R>();
+  } catch (...) {
+    error_if(true);
+  }
+}
+
 int main() {
+  test_resolve_aliases();
+  test_validate_aliases();
   test_trim_ws();
   test_split_by_comma();
   test_levenshtein_distance();
@@ -306,33 +439,31 @@ int main() {
           "program_name_placeholder",
           "--ab",
       },
-      clinok::errc::unknown_option, "unknown option \"--ab\" you probably meant \"--abc\" option\n");
+      clinok::errc::unknown_option, "unknown option \"--ab\" you probably meant \"--ABC2\" option\n");
   test_parse1(
       {
           "program_name_placeholder",
-          "--abc",
+          "--myint",
       },
-      clinok::errc::argument_missing, "argument missing when parsing \"--abc\"\n");
+      clinok::errc::argument_missing, "argument missing when parsing \"--myint\"\n");
   test_parse1(
       {
           "program_name_placeholder",
-          "--abc",
+          "--color",
           "0",
       },
       clinok::errc::invalid_argument,
-      "invalid argument when parsing \"--abc\". Possible values are: [1, 2, 3, 4, 5]\n");
+      "invalid argument when parsing \"--color\". Possible values are: [red, green, blue, yellow]\n");
   test_parse1(
       {
           "program_name_placeholder",
-          "--abc",
+          "--myint",
           "1",
       },
       clinok::errc::required_option_not_present, "required option \"color\" is missing\n");
   test_parse1(
       {
           "program_name_placeholder",
-          "--abc",
-          "1",
           "--color",
           "blue",
       },
@@ -340,8 +471,6 @@ int main() {
   test_parse1(
       {
           "program_name_placeholder",
-          "--abc",
-          "1",
           "--myint2",
           "1",
           "--color",
@@ -352,8 +481,6 @@ int main() {
   test_parse1(
       {
           "program_name_placeholder",
-          "--abc",
-          "1",
           "-i",
           "1",
           "-c",
@@ -367,48 +494,63 @@ int main() {
           "program_name_placeholder",
           "-hh",
       },
-      clinok::errc::argument_missing, "argument missing when parsing \"-hh\" resolved as \"--abc\"\n");
+      clinok::errc::argument_missing, "argument missing when parsing \"-hh\" resolved as \"--myint\"\n");
   test_parse1(
       {
           "program_name_placeholder",
-          "-hh",
+          "-c",
           "0",
       },
       clinok::errc::invalid_argument,
-      "invalid argument when parsing \"-hh\" resolved as \"--abc\". Possible values are: [1, 2, 3, 4, "
-      "5]\n");
+      "invalid argument when parsing \"-c\" resolved as \"--color\". Possible values are: [red, green, blue, "
+      "yellow]\n");
 
-  test_parse1_value(
-      {
-          "program_name_placeholder",
-          "--myint2",
-          "1",
-          "-hh",
-          "1",
-          "-c",
-          "red",
-      },
-      cli1::options{.abc = 1, .myint2 = 1, .color = cli1::color_e::red});
+  {
+    cli1::options expected = clinok::default_options<cli1::cli_t>();
+    expected.myint = 1;
+    expected.myint2 = 1;
+    expected.color = cli1::color_e::red;
+    test_parse1_value(
+        {
+            "program_name_placeholder",
+            "--myint2",
+            "1",
+            "-hh",
+            "1",
+            "-c",
+            "red",
+        },
+        expected);
+  }
 
-  test_parse1_value(
-      {
-          "program_name_placeholder",
-          "--myint2",
-          "1",
-          "--color",
-          "red",
-      },
-      cli1::options{.myint2 = 1, .color = cli1::color_e::red});
-
-  test_parse1_value(
-      {
-          "program_name_placeholder",
-          "--myint2",
-          "1",
-          "-c",
-          "blue",
-      },
-      cli1::options{.myint2 = 1, .color = cli1::color_e::blue});
+  {
+    cli1::options expected = clinok::default_options<cli1::cli_t>();
+    expected.myint2 = 1;
+    expected.color = cli1::color_e::red;
+    test_parse1_value(
+        {
+            "program_name_placeholder",
+            "--myint2",
+            "1",
+            "--color",
+            "red",
+        },
+        expected);
+  }
+  {
+    cli1::options expected = clinok::default_options<cli1::cli_t>();
+    expected.myint2 = 1;
+    expected.color = cli1::color_e::blue;
+    test_parse1_value(
+        {
+            "program_name_placeholder",
+            "--myint2",
+            "1",
+            "-c",
+            "blue",
+        },
+        expected);
+  }
 
   test_parse1(
       {
@@ -441,41 +583,60 @@ int main() {
           "black",
       },
       clinok::errc::disallowed_free_arg, "disallowed free arg \"myint2\"\n");
-  test_parse2_value(
-      {
-          "program_name_placeholder",
-          "--myname",
-          "name",
-      },
-      cli2::options{.myname = "name"});
-  test_parse2_value(
-      {
-          "program_name_placeholder",
-          "--myname",
-          "name",
-          "arg1",
-          "arg2",
-      },
-      cli2::options{.myname = "name", .additional_args = {"arg1", "arg2"}});
-  test_parse2_value(
-      {
-          "program_name_placeholder",
-          "arg1",
-          "--myname",
-          "name",
-          "arg2",
-          "arg3",
-      },
-      cli2::options{.myname = "name", .additional_args = {"arg1", "arg2", "arg3"}});
-  test_parse2_value(
-      {
-          "program_name_placeholder",
-          "arg1",
-          "arg2",
-          "--myname",
-          "name",
-      },
-      cli2::options{.myname = "name", .additional_args = {"arg1", "arg2"}});
+  {
+    cli2::options expected = clinok::default_options<cli2::cli_t>();
+    expected.myname = "name";
+    test_parse2_value(
+        {
+            "program_name_placeholder",
+            "--myname",
+            "name",
+        },
+        expected);
+  }
+  {
+    cli2::options expected = clinok::default_options<cli2::cli_t>();
+    expected.myname = "name";
+    expected.additional_args = {"arg1", "arg2"};
+    test_parse2_value(
+        {
+            "program_name_placeholder",
+            "--myname",
+            "name",
+            "arg1",
+            "arg2",
+        },
+        expected);
+  }
+  {
+    cli2::options expected = clinok::default_options<cli2::cli_t>();
+    expected.myname = "name";
+    expected.additional_args = {"arg1", "arg2", "arg3"};
+    test_parse2_value(
+        {
+            "program_name_placeholder",
+            "arg1",
+            "--myname",
+            "name",
+            "arg2",
+            "arg3",
+        },
+        expected);
+  }
+  {
+    cli2::options expected = clinok::default_options<cli2::cli_t>();
+    expected.myname = "name";
+    expected.additional_args = {"arg1", "arg2"};
+    test_parse2_value(
+        {
+            "program_name_placeholder",
+            "arg1",
+            "arg2",
+            "--myname",
+            "name",
+        },
+        expected);
+  }
   test_parse2(
       {
           "program_name_placeholder",
@@ -509,31 +670,30 @@ int main() {
   test_parse3({"program_name_placeholder", "--timeout", "5"}, clinok::errc::required_option_not_present,
               "required option \"user\" is missing\n");
 
-  test_parse3_value(
-      {"program_name_placeholder", "--user", "alice", "--location", "10", "20", "--log-level", "info"},
-      cli3::options{
-          .log_level = cli3::log_level_e::info, .user = "alice", .location = Point{.x = 10, .y = 20}});
-
+  {
+    cli3::options expected = clinok::default_options<cli3::cli_t>();
+    expected.log_level = cli3::log_level_e::info;
+    expected.user = "alice";
+    expected.location = Point{.x = 10, .y = 20};
+    test_parse3_value(
+        {"program_name_placeholder", "--user", "alice", "--location", "10", "20", "--log-level", "info"},
+        expected);
+  }
   std::string help1 = get_help<cli1::cli_t>(), help2 = get_help<cli2::cli_t>(),
               help3 = get_help<cli3::cli_t>();
-  error_if(expected_help1 != help1);
-  error_if(expected_help2 != help2);
-  error_if(expected_help3 != help3);
+  assert_eq(expected_help1, help1);
+  assert_eq(expected_help2, help2);
+  assert_eq(expected_help3, help3);
 
-  static_assert(cli1::is_required_option<cli1::color_o>::value);
-  static_assert(cli1::is_required_option<cli1::myint2_o>::value);
-  static_assert(!cli1::is_required_option<cli1::ABC2_o>::value);
-  static_assert(!cli1::allow_additional_args && cli2::allow_additional_args);
+  static_assert(!cli1::cli_t::allow_additional_args && cli2::cli_t::allow_additional_args);
   cli1::options o1;
   // should compile
-  use(o1.mytag, o1.works, o1.hello_world, o1.myname, o1.ABC2, o1.abc, o1.str_enum, o1.myint, o1.myint2,
-      o1.color);
+  use(o1.mytag, o1.works, o1.hello_world, o1.myname, o1.ABC2, o1.myint, o1.myint2, o1.color);
   // default values
-  error_if(o1.myint != 17 || o1.myint2 != 0 || o1.str_enum != "hello" || o1.abc != 1 || o1.ABC2 != "why" ||
-           o1.myname != "" || o1.hello_world != "hello, man" || o1.works != false || o1.mytag != false ||
-           o1.color != cli1::color_e::red);
+  error_if(o1.myint != 0 || o1.myint2 != 0 || o1.ABC2 != "" || o1.myname != "" || o1.hello_world != "" ||
+           o1.works != false || o1.mytag != false || o1.color != cli1::color_e{});
   cli2::options o2;
-  use(o2.mytag, o2.works, o2.hello_world, o2.myname, o2.ABC2, o2.str_enum);
+  use(o2.mytag, o2.works, o2.hello_world, o2.myname, o2.ABC2);
 
   test_select_subprogram({"git", "status", "abc"}, "git", {"status", "branch"}, "", 0);
   test_select_subprogram({"git", "status", "abc"}, "git", {"branch", "status"}, "", 1);

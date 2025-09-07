@@ -151,7 +151,7 @@ double damerau_levenshtein_distance(std::string_view a, std::string_view b) {
   return prev_row[n];
 }
 
-std::string_view errc2str(errc e) noexcept {
+std::string_view e2str(errc e) noexcept {
   switch (e) {
     case errc::invalid_argument:
       return "invalid argument";

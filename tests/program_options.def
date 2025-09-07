@@ -1,5 +1,5 @@
 TAG(mytag, "something")
-BOOLEAN(works, "it works", default(false))
+BOOLEAN(works, "it works", default("false"))
 STRING(hello_world, "because, why not",    
 default("hello, man"))
 STRING(myname,
@@ -8,16 +8,13 @@ STRING(ABC2,
        "VERY"
        "mda\n",
        default("why"))
-ENUM(abc, "enum description", 1, 2, 3, 4, 5)
-ENUM(str_enum, "enum str description", "hello", "world", "float")
-INTEGER(myint, "myint description", default(17))
+
+INTEGER(myint, "myint description", default("17"))
 INTEGER(myint2, "myint2 without default")
-STRING_ENUM(color, "description", red,               green, blue              ,yellow)
+DECLARE_STRING_ENUM(color_e,  red,               green, blue              ,yellow)
+OPTION(color_e, color, "description")
 ALIAS(h, help)
 ALIAS(w, works)
-ALIAS(hh, abc)
+ALIAS(hh, myint)
 ALIAS(i, myint2)
 ALIAS(c, color)
-
-REQUIRED(color)
-

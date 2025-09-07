@@ -60,7 +60,7 @@ enum struct errc {
   required_option_not_present,  // option without default value not present in arguments
 };
 
-std::string_view errc2str(errc) noexcept;
+std::string_view e2str(errc) noexcept;
 
 struct error_code {
   errc what = errc::ok;
@@ -81,10 +81,8 @@ struct error_code {
 
 // assumes first arg as program name
 constexpr inline args_t args_range(int argc, const arg* argv) noexcept {
-  assert(argc >= 0);
-  if (argc == 0)
-    return args_t{};
-  return args_t(argv + 1, argv + argc);
+  assert(argc > 0);
+  return args_t(argv, argv + argc);
 }
 
 template <typename...>
@@ -95,13 +93,13 @@ namespace noexport {
 struct null_option {};
 
 template <typename, typename... Options>
-using all_options_impl = clinok::typelist<Options...>;
+using biteoff_first_arg = clinok::typelist<Options...>;
 
 consteval std::size_t count_enum_entities(std::string_view values) {
   if (std::count(values.begin(), values.end(), '=') > 1)
-    throw "Incorrect STRING_ENUM";
+    throw "Incorrect enum";
   if (values.empty())
-    throw "Incorrect STRING_ENUM without values";
+    throw "Incorrect enum: no values";
   return std::count(values.begin(), values.end(), ',') + 1;
 }
 
@@ -150,6 +148,20 @@ constexpr auto drop_dummy(const std::array<T, N>& from) {
   std::array<T, K> res;
   std::copy(from.begin() + N - K, from.end(), res.begin());
   return res;
+}
+
+template <typename X>
+static std::string join_comma(std::span<const X> values, auto tostr) {
+  std::string result = "[";
+  auto b = values.begin();
+  auto e = values.end();
+  if (b != e)
+    result += tostr(*b++);
+  for (; b != e; ++b) {
+    result.append(", ").append(tostr(*b));
+  }
+  result += "]";
+  return result;
 }
 
 }  // namespace noexport

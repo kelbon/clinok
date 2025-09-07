@@ -1,5 +1,5 @@
 TAG(mytag, "something")
-BOOLEAN(works, "it works", default(false))
+BOOLEAN(works, "it works", default("false"))
 STRING(hello_world, "because, why not", default("hello, man"))
 STRING(myname,
                      R"(fdsfdsfsddsfsdffdsfsireriteowireowroiewri
@@ -10,7 +10,5 @@ STRING(ABC2, "VERY"
 "LONG\n"
 "DESC FDISF ODF OFDOISE \n",
 default("why"))
-
-ENUM(str_enum, "enum str description", "hello", "world", "float")
 
 ALLOW_ADDITIONAL_ARGS
