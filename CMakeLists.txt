@@ -3,6 +3,13 @@ project(clinok LANGUAGES CXX)
 
 option(CLINOK_ENABLE_TESTING "enables testing" OFF)
 option(CLINOK_ENABLE_EXAMPLES "enables examples" OFF)
+option(CLINOK_SANITIZE "enables ASAN/UNSAN" OFF)
+
+if (CLINOK_SANITIZE)
+  # fno omit frame pointer to improve trace from sanitizers
+  add_compile_options(-fsanitize=address -fno-omit-frame-pointer -fsanitize=undefined)
+  add_link_options(-fsanitize=address -fsanitize=undefined)
+endif()
 
 add_library(clinoklib STATIC "${CMAKE_CURRENT_SOURCE_DIR}/src/clinok/utils.cpp")
 
