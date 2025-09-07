@@ -1,7 +1,6 @@
 #pragma once
 
 #include <charconv>
-#include <numeric>
 #include <string>
 #include <string_view>
 
@@ -9,46 +8,31 @@
 
 namespace clinok {
 
-struct default_descriptor_type {
-  constexpr static std::string_view placeholder() {
-    return "";
-  }
-
-  static constexpr bool has_default() {
-    return false;
-  }
-
-  constexpr static std::string_view default_value_desc() {
-    return "";
-  }
-
-  static void set_default_value(auto&) {
-  }
-
-  constexpr static bool has_possible_values() {
-    return false;
-  }
-
-  constexpr static std::string_view possible_values_desc() {
-    return "";
-  }
-};
-
 template <typename T>
-struct descriptor_type : default_descriptor_type {
-  // static args_t::iterator parse(args_t::iterator it, args_t::iterator end, T& out, errc& er);
+struct type_descriptor {
+  // required
+  // used for help message, printed as expected value, e.g. <string>
+  // std::string_view placeholder()
+
+  // required
+  // used to parse T, returns iterator to first unparsed arg
+  // parse_option(b, e, T&, errc&) } -> args_t::iterator;
+
+  // optional
+  // used for help message, e.g. for enum "[red, green, blue]"
+  // possible_values_description()
 };
 
 template <std::integral T>
-struct descriptor_type<T> : default_descriptor_type {
-  constexpr static std::string_view placeholder() noexcept {
+struct type_descriptor<T> {
+  static constexpr std::string_view placeholder() noexcept {
     if constexpr (std::unsigned_integral<T>) {
       return "<unsigned int>";
     } else
       return "<int>";
   }
 
-  static args_t::iterator parse(args_t::iterator it, args_t::iterator end, T& out, errc& er) {
+  static args_t::iterator parse_option(args_t::iterator it, args_t::iterator end, T& out, errc& er) {
     if (it == end) {
       er = errc::argument_missing;
       return it;
@@ -65,12 +49,13 @@ struct descriptor_type<T> : default_descriptor_type {
 };
 
 template <>
-struct descriptor_type<bool> : default_descriptor_type {
-  constexpr static std::string_view placeholder() {
+struct type_descriptor<bool> {
+  static constexpr std::string_view placeholder() {
     return "<bool>";
   }
 
-  static args_t::iterator parse(args_t::iterator it, args_t::iterator end, bool& out, errc& er) {
+  static constexpr args_t::iterator parse_option(args_t::iterator it, args_t::iterator end, bool& out,
+                                                 errc& er) {
     if (it == end) {
       er = errc::argument_missing;
       return it;
@@ -94,12 +79,13 @@ struct descriptor_type<bool> : default_descriptor_type {
 };
 
 template <>
-struct descriptor_type<std::string> : default_descriptor_type {
-  constexpr static std::string_view placeholder() {
+struct type_descriptor<std::string> {
+  static constexpr std::string_view placeholder() {
     return "<string>";
   }
 
-  static args_t::iterator parse(args_t::iterator it, args_t::iterator end, std::string& out, errc& er) {
+  static args_t::iterator parse_option(args_t::iterator it, args_t::iterator end, std::string& out,
+                                       errc& er) {
     if (it == end) {
       er = errc::argument_missing;
       return it;
@@ -110,12 +96,13 @@ struct descriptor_type<std::string> : default_descriptor_type {
 };
 
 template <>
-struct descriptor_type<std::string_view> : default_descriptor_type {
-  constexpr static std::string_view placeholder() {
+struct type_descriptor<std::string_view> {
+  static constexpr std::string_view placeholder() {
     return "<string>";
   }
 
-  static args_t::iterator parse(args_t::iterator it, args_t::iterator end, std::string_view& out, errc& er) {
+  static args_t::iterator parse_option(args_t::iterator it, args_t::iterator end, std::string_view& out,
+                                       errc& er) {
     if (it == end) {
       er = errc::argument_missing;
       return it;
@@ -126,8 +113,12 @@ struct descriptor_type<std::string_view> : default_descriptor_type {
 };
 
 template <>
-struct descriptor_type<void> : default_descriptor_type {
-  static args_t::iterator parse(args_t::iterator it, args_t::iterator end, bool& out, errc& er) {
+struct type_descriptor<void> {
+  static constexpr std::string_view placeholder() {
+    return "";
+  }
+  static constexpr args_t::iterator parse_option(args_t::iterator it, args_t::iterator end, bool& out,
+                                                 errc& er) {
     out = true;
     return it;
   }

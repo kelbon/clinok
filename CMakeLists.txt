@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.21)
 project(clinok LANGUAGES CXX)
 
 option(CLINOK_ENABLE_TESTING "enables testing" OFF)
+option(CLINOK_ENABLE_EXAMPLES "enables examples" OFF)
 
 add_library(clinoklib STATIC "${CMAKE_CURRENT_SOURCE_DIR}/src/clinok/utils.cpp")
 

@@ -1,8 +1,10 @@
 #pragma once
 
 #include <vector>
+#include <string_view>
 
-#include "clinok/descriptor_field.hpp"
+#include "clinok/utils.hpp"
+#include "clinok/type_descriptor.hpp"
 
 namespace clinok {
 
@@ -17,19 +19,92 @@ concept CLI_like = requires {
   T::allow_additional_args;
 };
 
-// passes empty option description object to 'foo'
-template <CLI_like CLI>
-constexpr void for_each_option(auto foo) {
-  [&]<typename... Options>(clinok::typelist<Options...>) {
-    (foo(descriptor_field<Options>{}), ...);
-  }(typename CLI::all_options{});
+template <typename T>
+concept option_like = std::is_empty_v<T> && requires {
+  typename T::logic_type;  // may be `void` for tag options
+  typename T::cpp_type;    // type stored in options struct
+  // name from options file
+  { T::name() };
+  // description from options file
+  { T::description() };
+  // is has value for `options` struct if option not passed in arguments
+  { T::has_default() } -> std::same_as<bool>;
+  // T::get(auto& x)  returns field associated with option
+
+  // required only if has_default() == true.
+  // Passed as default(<...>) in options file
+  //
+  // T::default_args() -> clinok::args_t
+};
+
+template <typename O>
+using logic_type_t = typename O::logic_type;
+
+template <typename O>
+using cpp_type_t = typename O::cpp_type;
+
+template <typename O>
+consteval bool is_tag_option() {
+  return std::is_void_v<logic_type_t<O>>;
+}
+
+// may be specialied for user-declared types
+// placeholder used in generated `help` to print expected input, <int> or smth like
+template <typename O>
+constexpr inline std::string_view placeholder_of = type_descriptor<logic_type_t<O>>::placeholder();
+
+// may be specialied for user-declared types
+// `name_of` is name for option parsing, e.g. it may be useful to rename option
+// declared in options file as `my_opt` into `my-opt`
+template <typename O>
+constexpr inline std::string_view name_of = O::name();
+
+// not exist by default, may be overloaded for concrete option
+template <typename O>
+constexpr auto possible_values_description(O) {
+  static_assert(option_like<O>);
+  using D = type_descriptor<logic_type_t<O>>;
+  if constexpr (requires { D::possible_values_description(); }) {
+    return D::possible_values_description();
+  } else {
+    return;  // void
+  }
+}
+
+template <typename O>
+constexpr bool has_possible_values_description(O) {
+  return !std::is_void_v<decltype(possible_values_description(O{}))>;
+}
+
+template <typename O>
+constexpr cpp_type_t<O> default_value_for() {
+  if constexpr (is_tag_option<O>()) {
+    return false;
+  } else {
+    // error if no default present
+    // supports array options too (more than 1 arg as default value)
+    args_t args(O::default_args().begin(), O::default_args().end());
+    cpp_type_t<O> value;
+    errc ec = errc::ok;
+    auto it = parse_option(O{}, args.begin(), args.end(), value, ec);
+    (void)it;
+    assert(it == args.end() && ec == errc::ok);  // default value must be parsable
+    return value;
+  }
+}
+
+// may be adl-specifizlied for concrete O (ption)
+template <typename O>
+constexpr args_t::iterator parse_option(O, args_t::iterator b, args_t::iterator e, cpp_type_t<O>& out,
+                                        errc& ec) {
+  return type_descriptor<logic_type_t<O>>::parse_option(b, e, out, ec);
 }
 
 // passes empty option description object to 'foo'
 template <CLI_like CLI>
-constexpr bool on_all_options(auto foo) {
-  return [&]<typename... Options>(clinok::typelist<Options...>) {
-    return (foo(descriptor_field<Options>{}) || ...);
+constexpr void for_each_option(auto foo) {
+  [&]<typename... Options>(clinok::typelist<Options...>) {
+    (foo(Options{}), ...);
   }(typename CLI::all_options{});
 }
 
@@ -37,15 +112,16 @@ constexpr bool on_all_options(auto foo) {
 template <CLI_like CLI>
 constexpr decltype(auto) apply_to_options(auto foo) {
   return [&]<typename... Options>(clinok::typelist<Options...>) -> decltype(auto) {
-    return foo(descriptor_field<Options>{}...);
+    return foo(Options{}...);
   }(typename CLI::all_options{});
 }
 
+// returns false if no such option
 template <CLI_like CLI>
 constexpr bool visit_option(std::string_view name, auto foo) {
   return apply_to_options<CLI>([&](auto... os) {
-    auto visit_one = [&](auto o) -> bool {
-      if (name != o.name()) {
+    auto visit_one = [&]<typename O>(O o) -> bool {
+      if (name != name_of<O>) {
         return false;
       }
       foo(o);
@@ -56,33 +132,48 @@ constexpr bool visit_option(std::string_view name, auto foo) {
 }
 
 template <CLI_like CLI>
-consteval bool has_option(std::string_view name) {
-  return apply_to_options<CLI>([&](auto... opts) { return ((opts.name() == name) || ...); });
+constexpr bool has_option(std::string_view name) {
+  return visit_option<CLI>(name, [](auto) {});
 }
 
 // accepts function which acceps std::string_view to out
 template <CLI_like CLI, typename Out>
 inline Out print_help_message_to(Out out) noexcept {
-  out("\n");
+  out('\n');
   auto option_string_len = [&]<typename O>(O o) -> size_t {
-    return sizeof("--") + O::name().size() + o.placeholder().size();
+    return sizeof("--") + name_of<O>.size() + placeholder_of<O>.size();
   };
   std::size_t largest_help_string =
       apply_to_options<CLI>([&](auto... opts) { return std::max({size_t(0), option_string_len(opts)...}); });
   for_each_option<CLI>([&]<typename O>(O o) {
-    out(" --"), out(O::name()), out(' '), out(o.placeholder());
+    out(" --"), out(name_of<O>), out(' '), out(placeholder_of<O>);
     const int whitespace_count = 2 + largest_help_string - option_string_len(o);
     for (int i = 0; i < whitespace_count; ++i)
       out(' ');
-    if (O::has_implicit_default() && !is_required_option_v<O>) {
-      out("Default: ");
-      out(O::default_value_desc());
-      out(". ");
+
+    if constexpr (O::has_default() && !is_tag_option<O>()) {
+      out("default: ");
+
+      auto args = O::default_args();
+      if (args.size() == 1) {
+        out('"');
+        out(std::string_view(args.front()));
+        out('"');
+      } else {
+        out(noexport::join_comma(O::default_args(), [](arg a) {
+          std::string s;
+          s += '"';
+          s += std::string_view(a);
+          s += '"';
+          return s;
+        }));
+      }
+      out(", ");
     }
     out(O::description());
-    if (O::has_possible_values()) {
+    if constexpr (has_possible_values_description(O{})) {
       out(". Possible values: ");
-      out(O::possible_values_desc());
+      out(possible_values_description(O{}));
     }
     out('\n');
   });
@@ -94,19 +185,89 @@ inline Out print_help_message_to(Out out) noexcept {
   return std::move(out);
 }
 
-// assumes first arg as program name
+// returns resolved option name or empty string if no such alias
 template <CLI_like CLI>
-constexpr typename CLI::options parse(args_t args, error_code& ec) noexcept {
+[[nodiscard]] constexpr std::string_view resolve_alias(std::string_view alias) {
+  using std::end;
+  auto it = std::ranges::find_if(CLI::aliases, [alias](auto& x) { return x.first == alias; });
+  if (it != end(CLI::aliases)) {
+    if (has_option<CLI>(it->second))
+      return it->second;
+    else {
+      // has_alias (it->second)
+      auto ait = std::ranges::find_if(CLI::aliases, [&](auto& x) { return x.first == it->second; });
+      if (ait != end(CLI::aliases))
+        return resolve_alias<CLI>(it->second);
+      else
+        return "";
+    }
+  }
+  return "";
+}
+
+template <typename CLI>
+constexpr bool validate_aliases() {
+  // array [alias -> resolved, ...]
+  using std::begin;
+  using std::end;
+  std::vector<std::pair<std::string_view, std::string_view>> aliases(begin(CLI::aliases), end(CLI::aliases));
+  // assume all not empty
+  for (auto& [a, r] : aliases) {
+    if (a.empty())
+      throw +"bad alias, empty string";
+    if (r.empty())
+      throw +"bad alias, resolves to empty";
+    if (a == r)
+      throw +"bad alias, resolves to itself";
+  }
+
+  for (auto& [a, r] : aliases) {
+    if (has_option<CLI>(std::string_view(a)))
+      throw +"bad alias, same name as option";
+  }
+
+  for (auto& [a, r] : aliases) {
+    std::string_view resolved = resolve_alias<CLI>(a);
+    if (resolved.empty())
+      throw +"bad alias, option do not exist";
+  }
+  if (aliases.size() < 2)
+    return true;
+  // sort by alias names AND values to effectively find not unique aliases
+  std::ranges::sort(aliases, [](auto&& l, auto&& r) {
+    return l.first == r.first ? l.second < r.second : l.first < r.first;
+  });
+  auto it = std::ranges::adjacent_find(
+      aliases, [](auto&& f, auto&& s) { return f.first == s.first && f.second != s.second; });
+
+  if (it != end(aliases))
+    throw +"two aliases with same name resolved to different options";
+  return true;
+}
+
+// assumes first arg as program name
+// increments correspoding field in `presented` for each option, so caller may know which options presented
+// Note: previous value of `presented`  will be forgotten
+template <CLI_like CLI>
+constexpr typename CLI::options parse(args_t args, typename CLI::presented_options& presented,
+                                      error_code& ec) noexcept {
+  static_assert(validate_aliases<CLI>());
+  assert(!args.empty());
+
   typename CLI::options opts;
-  typename CLI::presented_options p_opts;
+  presented = {};
 
   auto set_error = [&](std::string_view typed, errc what, std::string_view resolved) {
     ec.set_error(what, context{std::string(typed), std::string(resolved)});
   };
-  for (auto it = args.begin(); it != args.end();) {
-    std::string_view typed = *it;
-    std::string_view s = *it;
+  std::string_view s;
+  std::string_view typed;
+  errc er = errc::ok;
 
+  // skip program name
+  for (auto it = args.begin() + 1; it != args.end();) {
+    typed = s = *it;
+    ++it;
     if (s == "-" || s == "--") {
       set_error(typed, errc::option_missing, "");
       return opts;
@@ -116,13 +277,12 @@ constexpr typename CLI::options parse(args_t args, error_code& ec) noexcept {
       s.remove_prefix(2);
     } else if (s.starts_with('-')) {
       s.remove_prefix(1);
-      if (auto it2 = std::ranges::find_if(CLI::aliases, [&](auto& x) { return x.first == s; });
-          it2 != std::end(CLI::aliases)) {
-        s = it2->second;
-      } else {
+      std::string_view resolved = resolve_alias<CLI>(s);
+      if (resolved.empty()) [[unlikely]] {
         set_error(typed, errc::unknown_option, s);
         return opts;
       }
+      s = resolved;
     } else {
       if constexpr (!CLI::allow_additional_args) {
         set_error(typed, errc::disallowed_free_arg, s);
@@ -133,23 +293,13 @@ constexpr typename CLI::options parse(args_t args, error_code& ec) noexcept {
           if constexpr (CLI::allow_additional_args)
             o.additional_args.push_back(typed);
         }(opts);
-        ++it;
         continue;
       }
     }
 
-    errc er = errc::ok;
-
     bool processed = visit_option<CLI>(s, [&](auto o) {
-      bool& presented = o.get(p_opts);
-      if (presented) {
-        // TODO
-      }
-      presented = true;
-
-      auto& out = o.get(opts);
-
-      it = o.parse(++it, args.end(), out, er);
+      ++o.get(presented);
+      it = parse_option(o, it, args.end(), o.get(opts), er);
     });
 
     if (er != clinok::errc::ok) {
@@ -165,20 +315,26 @@ constexpr typename CLI::options parse(args_t args, error_code& ec) noexcept {
 
   for_each_option<CLI>([&]<typename O>(O o) {
     // is required and not present in arg list
-    if (!o.get(p_opts)) {
-      if (is_required_option_v<O> || !O::has_default()) {
-        set_error(o.name(), errc::required_option_not_present, o.name());
+    if (o.get(presented) == 0) {
+      if constexpr (!O::has_default()) {
+        set_error(name_of<O>, errc::required_option_not_present, name_of<O>);
       } else {
-        auto& out = o.get(opts);
-        O::set_default_value(out);
+        o.get(opts) = default_value_for<O>();
       }
     }
   });
   return opts;
 }
 
-template <CLI_like CLI>
 // assumes first arg as program name
+template <CLI_like CLI>
+constexpr typename CLI::options parse(args_t args, error_code& ec) noexcept {
+  typename CLI::presented_options presented;
+  return parse<CLI>(args, presented, ec);
+}
+
+// assumes first arg as program name
+template <CLI_like CLI>
 inline typename CLI::options parse(int argc, char* argv[], error_code& ec) noexcept {
   assert(argc >= 0);
   typename CLI::options o = parse<CLI>(args_range(argc, argv), ec);
@@ -207,7 +363,7 @@ constexpr Out print_err_to(const error_code& err, Out out) {
     out("\" is missing\n");
     return std::move(out);
   }
-  out(errc2str(err.what));
+  out(e2str(err.what));
   if (err.what != errc::unknown_option && err.what != errc::disallowed_free_arg)  // for better error message
     out(" when parsing \"");
   else
@@ -221,16 +377,19 @@ constexpr Out print_err_to(const error_code& err, Out out) {
   }
   switch (err.what) {
     case errc::invalid_argument:
-      for_each_option<CLI>([&](auto o) {
-        if (o.name() == err.ctx.resolved_name && o.has_possible_values()) {
-          out(". Possible values are: ");
-          out(o.possible_values_desc());
+      for_each_option<CLI>([&]<typename O>(O o) {
+        if constexpr (has_possible_values_description(O{})) {
+          if (name_of<O> == err.ctx.resolved_name) {
+            out(". Possible values are: ");
+            out(possible_values_description(o));
+          }
         }
       });
       break;
     case errc::unknown_option: {
       std::vector<std::string> optionnames;
-      for_each_option<CLI>([&](auto o) { optionnames.push_back(std::string("--").append(o.name())); });
+      for_each_option<CLI>(
+          [&]<typename O>(O o) { optionnames.push_back(std::string("--").append(name_of<O>)); });
 
       for (auto [a, _] : CLI::aliases) {
         optionnames.push_back(std::string("-").append(a));
@@ -250,7 +409,7 @@ constexpr Out print_err_to(const error_code& err, Out out) {
     default:
       break;
   }
-  out("\n");
+  out('\n');
   return std::move(out);
 }
 
@@ -273,4 +432,16 @@ inline typename CLI::options parse_or_exit(int argc, char* argv[]) {
   }
   return o;
 }
+
+template <CLI_like CLI>
+inline typename CLI::options default_options() {
+  typename CLI::options opts;
+  for_each_option<CLI>([&]<typename O>(O o) {
+    if constexpr (O::has_default())
+      o.get(opts) = default_value_for<O>();
+  });
+  // else zero initialized
+  return opts;
+}
+
 }  // namespace clinok

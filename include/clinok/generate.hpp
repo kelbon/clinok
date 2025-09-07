@@ -1,6 +1,10 @@
 
+#ifndef DECLARE_STRING_ENUM
+  #define DECLARE_STRING_ENUM(...)
+#endif
+
 #ifndef OPTION
-  #define OPTION(...)
+  #define OPTION(TYPE, NAME, DESCRIPTION, ...)
 #endif
 
 #ifndef BOOLEAN
@@ -11,16 +15,8 @@
   #define STRING(...) OPTION(::std::string_view, __VA_ARGS__)
 #endif
 
-#ifndef ENUM
-  #define ENUM(...)
-#endif
-
-#ifndef STRING_ENUM
-  #define STRING_ENUM(NAME, ...) OPTION(NAME_##_e, NAME, __VA_ARGS__)
-#endif
-
 #ifndef TAG
-  #define TAG(...) OPTION(void, __VA_ARGS__)
+  #define TAG(NAME, DESCRIPTION) OPTION(void, NAME, DESCRIPTION)
 #endif
 
 #ifndef INTEGER
@@ -29,10 +25,6 @@
 
 #ifndef ALIAS
   #define ALIAS(a, b)
-#endif
-
-#ifndef REQUIRED
-  #define REQUIRED(...)
 #endif
 
 #ifndef ALLOW_ADDITIONAL_ARGS
@@ -45,10 +37,8 @@ TAG(help, "list of all options")
 #undef BOOLEAN
 #undef STRING
 #undef TAG
-#undef ENUM
-#undef STRING_ENUM
 #undef OPTION
 #undef INTEGER
 #undef ALIAS
-#undef REQUIRED
 #undef ALLOW_ADDITIONAL_ARGS
+#undef DECLARE_STRING_ENUM

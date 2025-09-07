@@ -1,24 +1,21 @@
 TAG(version, "Print program version")
 
-BOOLEAN(verbose, "Enable verbose output", default(false))
+BOOLEAN(verbose, "Enable verbose output", default("false"))
 BOOLEAN(debug, "Enable debug mode")
 
 STRING(output, "Output file path", default("out.txt"))
 STRING(user, "User name")
 
-ENUM(level, "Integer level", 1, 2, 3, 4, 5)
-ENUM(mode, "Working mode", "fast", "safe", "balanced")
-
-STRING_ENUM(color, "UI color theme", red, green, blue, yellow)
-INTEGER(retries, "Number of retries", default(3))
+DECLARE_STRING_ENUM(color_e, red, green, blue, yellow)
+OPTION(color_e, color, "UI color theme", default("red"))
+INTEGER(retries, "Number of retries", default("3"))
 INTEGER(timeout, "Timeout in seconds")
 
-STRING_ENUM(log_level, "Log verbosity level", trace, debug, info, warn, error)
+DECLARE_STRING_ENUM(log_level_e, trace, debug, info, warn, error)
+OPTION(log_level_e, log_level, "Log verbosity level", default("trace"))
 
-OPTION(Point, point, "Custom type: point x,y", default(Point{0,0}))
+OPTION(Point, point, "Custom type: point x,y", default("0", "0"))
 
 ALIAS(h, help)
 ALIAS(v, verbose)
 ALIAS(u, user)
-
-REQUIRED(user)
