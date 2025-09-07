@@ -68,9 +68,6 @@ void use(auto&&...) {
 namespace clinok {
 
 template <>
-constexpr std::string_view name_of<cli3::log_level_o> = "log-level";
-
-template <>
 constexpr std::string_view placeholder_of<cli3::timeout_o> = "<seconds>";
 
 }  // namespace clinok
