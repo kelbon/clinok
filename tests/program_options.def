@@ -1,5 +1,7 @@
 TAG(mytag, "something")
 BOOLEAN(works, "it works", default("false"))
+SET_LOGIC_TYPE(works, bool)
+
 STRING(hello_world, "because, why not",    
 default("hello, man"))
 STRING(myname,

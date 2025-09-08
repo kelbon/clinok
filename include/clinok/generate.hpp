@@ -1,4 +1,12 @@
 
+#ifndef SET_LOGIC_TYPE
+  #define SET_LOGIC_TYPE(NAME, ...)
+#endif
+
+#ifndef SET_PLACEHOLDER
+  #define SET_PLACEHOLDER(NAME, ...)
+#endif
+
 #ifndef DECLARE_STRING_ENUM
   #define DECLARE_STRING_ENUM(...)
 #endif
@@ -47,3 +55,5 @@ TAG(help, "list of all options")
 #undef ALLOW_ADDITIONAL_ARGS
 #undef DECLARE_STRING_ENUM
 #undef RENAME
+#undef SET_LOGIC_TYPE
+#undef SET_PLACEHOLDER
