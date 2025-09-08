@@ -3,8 +3,6 @@
 // this header may be included many times in different .cpp files
 // to generate different parsers and options structs
 
-#include "clinok/cli.hpp"
-
 #ifndef CLINOK_NAMESPACE_NAME
   #define CLINOK_NAMESPACE_NAME cli
 #endif
@@ -28,6 +26,7 @@
 
 #include <clinok/type_descriptor.hpp>
 #include <clinok/utils.hpp>
+#include <clinok/cli.hpp>
 
 namespace CLINOK_NAMESPACE_NAME {
 
@@ -224,6 +223,14 @@ namespace clinok {
 #define RENAME(OLDNAME, NEWNAME) \
   template <>                    \
   constexpr inline std::string_view name_of<::CLINOK_NAMESPACE_NAME::OLDNAME##_o> = NEWNAME;
+
+#define SET_LOGIC_TYPE(NAME, ...) \
+  template <>                     \
+  struct logic_type<::CLINOK_NAMESPACE_NAME::NAME##_o> : ::std::type_identity<__VA_ARGS__> {};
+
+#define SET_PLACEHOLDER(NAME, ...) \
+  template <>                      \
+  constexpr inline std::string_view placeholder_of<::CLINOK_NAMESPACE_NAME::NAME##_o> = __VA_ARGS__;
 
 #include <clinok/generate.hpp>
 

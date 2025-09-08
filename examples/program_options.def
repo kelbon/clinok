@@ -10,9 +10,13 @@ DECLARE_STRING_ENUM(color_e, red, green, blue, yellow)
 OPTION(color_e, color, "UI color theme", default("red"))
 INTEGER(retries, "Number of retries", default("3"))
 INTEGER(timeout, "Timeout in seconds")
+// for better `help` message
+SET_PLACEHOLDER(timeout, "<seconds>")
 
 DECLARE_STRING_ENUM(log_level_e, trace, debug, info, warn, error)
 OPTION(log_level_e, log_level, "Log verbosity level", default("trace"))
+// allow --log-level, instead of --log_level
+RENAME(log_level, "log-level")
 
 OPTION(Point, point, "Custom type: point x,y", default("0", "0"))
 

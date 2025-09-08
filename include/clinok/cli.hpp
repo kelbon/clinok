@@ -38,7 +38,10 @@ concept option_like = std::is_empty_v<T> && requires {
 };
 
 template <typename O>
-using logic_type_t = typename O::logic_type;
+struct logic_type : std::type_identity<typename O::logic_type> {};
+
+template <typename O>
+using logic_type_t = typename logic_type<O>::type;
 
 template <typename O>
 using cpp_type_t = typename O::cpp_type;

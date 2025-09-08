@@ -6,18 +6,6 @@
 #define program_options_file "../examples/program_options.def"
 #include <clinok/cli_interface.hpp>
 
-namespace clinok {
-
-// override placeholders for better help message
-
-template <>
-constexpr std::string_view placeholder_of<cli::timeout_o> = "<seconds>";
-
-template <>
-constexpr std::string_view placeholder_of<cli::log_level_o> = "log-level";
-
-}  // namespace clinok
-
 void run_program(cli::options opt) {
   if (opt.version) {
     std::cout << "cli-example 1.0.0\n";
