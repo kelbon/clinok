@@ -139,6 +139,31 @@ constexpr bool has_option(std::string_view name) {
   return visit_option<CLI>(name, [](auto) {});
 }
 
+template <CLI_like CLI>
+[[nodiscard]] constexpr bool has_alias(std::string_view name) {
+  auto it = std::ranges::find_if(CLI::aliases, [&](auto& x) { return x.first == name; });
+  using std::end;
+  return it != end(CLI::aliases);
+}
+
+// returns resolved option name or empty string if no such alias
+template <CLI_like CLI>
+[[nodiscard]] constexpr std::string_view resolve_alias(std::string_view alias) {
+  using std::end;
+  auto it = std::ranges::find_if(CLI::aliases, [alias](auto& x) { return x.first == alias; });
+  if (it != end(CLI::aliases)) {
+    if (has_option<CLI>(it->second))
+      return it->second;
+    else {
+      if (has_alias<CLI>(it->second))
+        return resolve_alias<CLI>(it->second);
+      else
+        return "";
+    }
+  }
+  return "";
+}
+
 // accepts function which acceps std::string_view to out
 template <CLI_like CLI, typename Out>
 inline Out print_help_message_to(Out out) noexcept {
@@ -182,35 +207,10 @@ inline Out print_help_message_to(Out out) noexcept {
   });
 
   for (auto [a, b] : CLI::aliases) {
-    out(" -"), out(a), out(" is an alias to "), out(b), out('\n');
+    out(" -"), out(a), out(" is an alias to "), out(resolve_alias<CLI>(a)), out('\n');
   }
 
   return std::move(out);
-}
-
-template <CLI_like CLI>
-[[nodiscard]] constexpr bool has_alias(std::string_view name) {
-  auto it = std::ranges::find_if(CLI::aliases, [&](auto& x) { return x.first == name; });
-  using std::end;
-  return it != end(CLI::aliases);
-}
-
-// returns resolved option name or empty string if no such alias
-template <CLI_like CLI>
-[[nodiscard]] constexpr std::string_view resolve_alias(std::string_view alias) {
-  using std::end;
-  auto it = std::ranges::find_if(CLI::aliases, [alias](auto& x) { return x.first == alias; });
-  if (it != end(CLI::aliases)) {
-    if (has_option<CLI>(it->second))
-      return it->second;
-    else {
-      if (has_alias<CLI>(it->second))
-        return resolve_alias<CLI>(it->second);
-      else
-        return "";
-    }
-  }
-  return "";
 }
 
 template <typename CLI>
