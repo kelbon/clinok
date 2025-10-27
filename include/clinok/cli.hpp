@@ -87,7 +87,7 @@ constexpr cpp_type_t<O> default_value_for() {
     // error if no default present
     // supports array options too (more than 1 arg as default value)
     args_t args(O::default_args().begin(), O::default_args().end());
-    cpp_type_t<O> value;
+    cpp_type_t<O> value{};
     errc ec = errc::ok;
     auto it = parse_option(O{}, args.begin(), args.end(), value, ec);
     (void)it;
