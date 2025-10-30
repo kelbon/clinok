@@ -85,6 +85,9 @@ struct default_value {
   T value;
 };
 
+template <typename T>
+default_value(T) -> default_value<T>;
+
 template <typename>
 struct is_default_value_tag : std::false_type {};
 
