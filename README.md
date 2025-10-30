@@ -31,6 +31,10 @@ STRING(name, "description")
 # shortcut for OPTION(std::int_least64_t, ...)
 INTEGER(name, "description", default("42"))
 INTEGER(name, "description")
+# while "default" accepts string as parses it,
+# default_value adds possiblity get default value without parsing,
+# e.g. default_value(my_foo()) or just 42
+INTEGER(name, "description", default_value(42))
 
 # aliases to other options declared before
 # Note: program always supports 'help' option and
