@@ -79,11 +79,23 @@ constexpr bool has_possible_values_description(O) {
   return !std::is_void_v<decltype(possible_values_description(O{}))>;
 }
 
+// tag for default_value in OPTION
+template <typename T>
+struct default_value {
+  T value;
+};
+
+template <typename>
+struct is_default_value_tag : std::false_type {};
+
+template <typename T>
+struct is_default_value_tag<default_value<T>> : std::true_type {};
+
 template <typename O>
 constexpr cpp_type_t<O> default_value_for() {
   if constexpr (is_tag_option<O>()) {
     return false;
-  } else {
+  } else if constexpr (!is_default_value_tag<std::remove_cvref_t<decltype(O::default_args())>>::value) {
     // error if no default present
     // supports array options too (more than 1 arg as default value)
     args_t args(O::default_args().begin(), O::default_args().end());
@@ -93,6 +105,8 @@ constexpr cpp_type_t<O> default_value_for() {
     (void)it;
     assert(it == args.end() && ec == errc::ok);  // default value must be parsable
     return value;
+  } else {
+    return cpp_type_t<O>(O::default_args().value);
   }
 }
 
@@ -181,20 +195,24 @@ inline Out print_help_message_to(Out out) noexcept {
 
     if constexpr (O::has_default() && !is_tag_option<O>()) {
       out("default: ");
-
-      auto args = O::default_args();
-      if (args.size() == 1) {
-        out('"');
-        out(std::string_view(args.front()));
-        out('"');
+      if constexpr (!is_default_value_tag<std::remove_cvref_t<decltype(O::default_args())>>::value) {
+        auto args = O::default_args();
+        if (args.size() == 1) {
+          out('"');
+          out(std::string_view(args.front()));
+          out('"');
+        } else {
+          out(noexport::join_comma(O::default_args(), [](arg a) {
+            std::string s;
+            s += '"';
+            s += std::string_view(a);
+            s += '"';
+            return s;
+          }));
+        }
       } else {
-        out(noexport::join_comma(O::default_args(), [](arg a) {
-          std::string s;
-          s += '"';
-          s += std::string_view(a);
-          s += '"';
-          return s;
-        }));
+        // require value to be formattable by `Out`
+        out(O::default_args().value);
       }
       out(", ");
     }

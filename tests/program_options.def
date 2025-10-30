@@ -11,7 +11,7 @@ STRING(ABC2,
        "mda\n",
        default("why"))
 
-INTEGER(myint, "myint description", default("17"))
+INTEGER(myint, "myint description", default_value(calcualte_default_myint()))
 INTEGER(myint2, "myint2 without default")
 DECLARE_STRING_ENUM(color_e,  red,               green, blue              ,yellow)
 OPTION(color_e, color, "description")

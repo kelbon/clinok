@@ -1,3 +1,10 @@
+#include <string>
+#include <vector>
+
+static int calcualte_default_myint() {
+  return 17;
+}
+
 #define program_options_file "../tests/program_options.def"
 #define CLINOK_NAMESPACE_NAME cli1
 #include <clinok/cli_interface.hpp>
@@ -244,7 +251,7 @@ constexpr std::string_view expected_help1 = R"(
  --myname <string>       default: "", fdsfdsfsddsfsdffdsfsireriteowireowroiewr
  --ABC2 <string>         default: "why", VERYmda
 
- --myint <int>           default: "17", myint description
+ --myint <int>           default: 17, myint description
  --myint2 <int>          myint2 without default
  --color <string>        description. Possible values: [red, green, blue, yellow]
  --help                  list of all options
