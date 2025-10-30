@@ -60,6 +60,11 @@ using namespace ::clinok;
   static ::clinok::arg default_strs[] = {__VA_ARGS__}; \
   static_assert(sizeof(#__VA_ARGS__) > 1);             \
   return ::clinok::args_t(default_strs)
+// support default_value(foo())
+#define DD_CLI_STRdefault_value(...) \
+  return ::clinok::default_value {   \
+    __VA_ARGS__                      \
+  }
 
 #define OPTION(TYPE, NAME, DESCRIPTION, ...)                        \
   struct NAME##_o {                                                 \
@@ -105,7 +110,7 @@ using namespace ::clinok;
 
 #undef DD_CLI_STR
 #undef DD_CLI_STRdefault
-
+#undef DD_CLI_STRdefault_value
 }  // namespace CLINOK_NAMESPACE_NAME
 
 namespace clinok {

@@ -81,7 +81,6 @@ struct error_code {
 
 // assumes first arg as program name
 constexpr inline args_t args_range(int argc, const arg* argv) noexcept {
-  assert(argc > 0);
   return args_t(argv, argv + argc);
 }
 
