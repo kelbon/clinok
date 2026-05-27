@@ -43,6 +43,10 @@
   #define RENAME(OLDNAME, NEWNAME)
 #endif
 
+#ifndef ADD_HELP
+  #define ADD_HELP(...)
+#endif
+
 #include program_options_file
 TAG(help, "list of all options")
 
@@ -55,5 +59,6 @@ TAG(help, "list of all options")
 #undef ALLOW_ADDITIONAL_ARGS
 #undef DECLARE_STRING_ENUM
 #undef RENAME
+#undef ADD_HELP
 #undef SET_LOGIC_TYPE
 #undef SET_PLACEHOLDER

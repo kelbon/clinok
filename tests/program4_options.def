@@ -1,0 +1,7 @@
+ADD_HELP("First section")
+ADD_HELP("Second section")
+STRING(alpha, "Alpha option", default("A"))
+ADD_HELP("Between alpha and beta")
+ADD_HELP("Still between")
+INTEGER(beta, "Beta option", default("7"))
+ADD_HELP("Trailing section")

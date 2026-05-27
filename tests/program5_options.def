@@ -1,0 +1,4 @@
+ADD_HELP("Intro before option")
+STRING(base, "Base option", default("x"))
+ADD_HELP("Trailing block line 1")
+ADD_HELP("Trailing block line 2")

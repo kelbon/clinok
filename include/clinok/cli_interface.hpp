@@ -188,6 +188,15 @@ struct cli_t {
 #define ALLOW_ADDITIONAL_ARGS +1
 #include <clinok/generate.hpp>
       ;
+
+  static constexpr auto help_messages = noexport::reorder_help_messages(noexport::drop_dummy(std::to_array({
+                                                                            std::string_view{""},
+#define OPTION(...) std::string_view{""},
+#define ALIAS(...) std::string_view{""},
+#define ADD_HELP(X) std::string_view{X},
+#include <clinok/generate.hpp>
+                                                                        })),
+                                                                        !aliases.empty());
 };
 
 template <typename Out, CLI_like CLI = cli_t>
@@ -200,7 +209,6 @@ constexpr options parse(args_t args, error_code& ec) noexcept {
   return clinok::parse<CLI>(args, ec);
 }
 
-// assumes first arg as program name
 template <CLI_like CLI = cli_t>
 inline options parse(int argc, char* argv[], error_code& ec) noexcept {
   return clinok::parse<CLI>(argc, argv, ec);

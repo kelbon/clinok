@@ -1,0 +1,8 @@
+STRING(target, "Target option")
+INTEGER(count, "Count option", default("5"))
+ALIAS(t, target)
+ADD_HELP("Help after first alias")
+ALIAS(tt, t)
+ADD_HELP("Help after second alias")
+ALIAS(c, count)
+ADD_HELP("Trailing after aliases")

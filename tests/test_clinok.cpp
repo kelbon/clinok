@@ -21,6 +21,26 @@ static int calcualte_default_myint() {
 
 #include <clinok/cli_interface.hpp>
 
+#define program_options_file "../tests/program4_options.def"
+#define CLINOK_NAMESPACE_NAME cli4
+
+#include <clinok/cli_interface.hpp>
+
+#define program_options_file "../tests/program5_options.def"
+#define CLINOK_NAMESPACE_NAME cli5
+
+#include <clinok/cli_interface.hpp>
+
+#define program_options_file "../tests/program6_options.def"
+#define CLINOK_NAMESPACE_NAME cli6
+
+#include <clinok/cli_interface.hpp>
+
+#define program_options_file "../tests/program7_options.def"
+#define CLINOK_NAMESPACE_NAME cli7
+
+#include <clinok/cli_interface.hpp>
+
 #include <iostream>
 #include <sstream>
 #include <tuple>
@@ -277,13 +297,53 @@ DESC FDISF ODF OFDOISE
 )";
 
 constexpr std::string_view expected_help3 = R"(
+Is test program
  --log-level <string>  default: "trace", Verbosity level. Possible values: [trace, debug, info, warn, error]
+Basic options:
  --timeout <seconds>   default: "10", Request timeout in seconds
  --user <string>       User name
+X for abcisses
+Y for ordinates
  --location <x> <y>    default: ["0", "0"], Custom type: point x,y
  --help                list of all options
  -l is an alias to log-level
  -t is an alias to timeout
+End description
+)";
+
+constexpr std::string_view expected_help4 = R"(
+First section
+Second section
+ --alpha <string>  default: "A", Alpha option
+Between alpha and beta
+Still between
+ --beta <int>      default: "7", Beta option
+ --help            list of all options
+Trailing section
+)";
+
+constexpr std::string_view expected_help5 = R"(
+Intro before option
+ --base <string>  default: "x", Base option
+ --help           list of all options
+Trailing block line 1
+Trailing block line 2
+)";
+
+constexpr std::string_view expected_help6 = R"(
+ --target <string>  Target option
+ --count <int>      default: "5", Count option
+ --help             list of all options
+ -t is an alias to target
+Help after first alias
+ -tt is an alias to target
+Help after second alias
+ -c is an alias to count
+Trailing after aliases
+)";
+
+constexpr std::string_view expected_help7 = R"(
+ --help   list of all options
 )";
 
 // clang-format on
@@ -297,6 +357,7 @@ struct A1 {
   static constexpr bool allow_additional_args = false;
 
   static constexpr alias aliases[] = {{"a", "b"}};
+  static constexpr std::array<std::string_view, 1> help_messages = {""};
 };
 
 namespace my {
@@ -684,10 +745,17 @@ int main() {
         expected);
   }
   std::string help1 = get_help<cli1::cli_t>(), help2 = get_help<cli2::cli_t>(),
-              help3 = get_help<cli3::cli_t>();
+              help3 = get_help<cli3::cli_t>(), help4 = get_help<cli4::cli_t>(),
+              help5 = get_help<cli5::cli_t>(), help6 = get_help<cli6::cli_t>(),
+              help7 = get_help<cli7::cli_t>();
+
   assert_eq(expected_help1, help1);
   assert_eq(expected_help2, help2);
   assert_eq(expected_help3, help3);
+  assert_eq(expected_help4, help4);
+  assert_eq(expected_help5, help5);
+  assert_eq(expected_help6, help6);
+  assert_eq(expected_help7, help7);
 
   static_assert(!cli1::cli_t::allow_additional_args && cli2::cli_t::allow_additional_args);
   cli1::options o1;

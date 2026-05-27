@@ -17,6 +17,7 @@ concept CLI_like = requires {
 
   T::aliases;
   T::allow_additional_args;
+  T::help_messages;
 };
 
 template <typename T>
@@ -185,12 +186,24 @@ template <CLI_like CLI>
 template <CLI_like CLI, typename Out>
 inline Out print_help_message_to(Out out) noexcept {
   out('\n');
+  size_t cur_help_msg_idx = 0;
+
+  auto print_help_msg = [&] {
+    while (cur_help_msg_idx < CLI::help_messages.size() && !CLI::help_messages[cur_help_msg_idx].empty()) {
+      out(CLI::help_messages[cur_help_msg_idx]);
+      out("\n");
+      cur_help_msg_idx++;
+    }
+    cur_help_msg_idx++;
+  };
+
   auto option_string_len = [&]<typename O>(O o) -> size_t {
     return sizeof("--") + name_of<O>.size() + placeholder_of<O>.size();
   };
   std::size_t largest_help_string =
       apply_to_options<CLI>([&](auto... opts) { return std::max({size_t(0), option_string_len(opts)...}); });
   for_each_option<CLI>([&]<typename O>(O o) {
+    print_help_msg();
     out(" --"), out(name_of<O>), out(' '), out(placeholder_of<O>);
     const int whitespace_count = 2 + largest_help_string - option_string_len(o);
     for (int i = 0; i < whitespace_count; ++i)
@@ -229,7 +242,10 @@ inline Out print_help_message_to(Out out) noexcept {
 
   for (auto [a, b] : CLI::aliases) {
     out(" -"), out(a), out(" is an alias to "), out(resolve_alias<CLI>(a)), out('\n');
+    print_help_msg();
   }
+
+  print_help_msg();
 
   return std::move(out);
 }
@@ -346,14 +362,12 @@ void print_err(const error_code& err, std::ostream& out = std::cerr) {
   print_err_to<CLI>(err, [&](auto&& x) { out << x; });
 }
 
-// assumes first arg as program name
 // increments correspoding field in `presented` for each option, so caller may know which options presented
 // Note: previous value of `presented`  will be forgotten
 template <CLI_like CLI>
 constexpr typename CLI::options parse(args_t args, typename CLI::presented_options& presented,
                                       error_code& ec) noexcept {
   static_assert(validate_aliases<CLI>());
-  assert(!args.empty());
 
   typename CLI::options opts;
   presented = {};
@@ -365,8 +379,7 @@ constexpr typename CLI::options parse(args_t args, typename CLI::presented_optio
   std::string_view typed;
   errc er = errc::ok;
 
-  // skip program name
-  for (auto it = args.begin() + 1; it != args.end();) {
+  for (auto it = args.begin(); it != args.end();) {
     typed = s = *it;
     ++it;
     if (s == "-" || s == "--") {
@@ -427,26 +440,23 @@ constexpr typename CLI::options parse(args_t args, typename CLI::presented_optio
   return opts;
 }
 
-// assumes first arg as program name
 template <CLI_like CLI>
 constexpr typename CLI::options parse(args_t args, error_code& ec) noexcept {
   typename CLI::presented_options presented;
   return parse<CLI>(args, presented, ec);
 }
 
-// assumes first arg as program name
 template <CLI_like CLI>
 inline typename CLI::options parse(int argc, char* argv[], error_code& ec) noexcept {
-  assert(argc >= 0);
-  typename CLI::options o = parse<CLI>(args_range(argc, argv), ec);
+  auto args = args_range(argc, argv);
+  typename CLI::options o = parse<CLI>(args, ec);
   if (o.help) {
     print_help_message_to<CLI>([](auto s) { std::cout << s; });
     std::flush(std::cout);
     std::exit(0);
   } else if (ec) {
-    // skip program name
     bool help_found = false;
-    for (std::string_view a : args_range(argc - 1, argv + 1)) {
+    for (std::string_view a : args) {
       if (a == "--help") {
         help_found = true;
         break;
@@ -467,7 +477,6 @@ inline typename CLI::options parse(int argc, char* argv[], error_code& ec) noexc
   return o;
 }
 
-// assumes first arg as program name
 // parses args, dumps error and terminates program if error occured
 template <typename CLI>
 inline typename CLI::options parse_or_exit(int argc, char* argv[]) {
