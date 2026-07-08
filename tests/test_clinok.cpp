@@ -180,7 +180,8 @@ void test_levenshtein_distance() {
   error_if(d1 != 0.5 || d2 != 2);  // 'p' closer to 'o' then to 'a' on qwerty keyboard
 }
 
-void test_parse1(std::vector<const char*> argv, clinok::errc expected_err, std::string expected_msg) {
+cli1::options test_parse1(std::vector<const char*> argv, clinok::errc expected_err,
+                          std::string expected_msg) {
   clinok::error_code ec;
   cli1::options o = cli1::parse(clinok::args_range(argv.size(), (char**)argv.data()), ec);
   if (expected_err != clinok::errc::ok)
@@ -190,6 +191,7 @@ void test_parse1(std::vector<const char*> argv, clinok::errc expected_err, std::
   cli1::print_err_to(ec, [&](auto x) { str << x; });
   auto s = str.str();
   assert_eq(expected_msg, s);
+  return o;
 }
 
 void test_parse1_value(std::vector<const char*> argv, cli1::options expected) {
@@ -255,9 +257,9 @@ void test_select_subprogram(std::vector<const char*> vecargs, std::string_view p
 template <clinok::CLI_like CLI>
 std::string get_help() {
   std::string result;
-  clinok::print_help_message_to<CLI>([&](auto x) {
+  clinok::print_help_message_to<CLI>([&](auto&& x) {
     std::stringstream ss;
-    ss << x;
+    ss << clinok::noexport::to_string_helper(x);
     result.append(ss.str());
   });
   return result;
@@ -274,6 +276,7 @@ constexpr std::string_view expected_help1 = R"(
  --myint <int>           default: 17, myint description
  --myint2 <int>          myint2 without default
  --color <string>        description. Possible values: [red, green, blue, yellow]
+ --many-x <string>       default: [], many x description
  --help                  list of all options
  -h is an alias to help
  -w is an alias to works
@@ -487,12 +490,55 @@ void test_validate_aliases() {
   }
 }
 
+void test_parse_multiarg() {
+  cli1::options o = test_parse1(
+      {
+          "program_name_placeholder",
+          "-i",
+          "1",
+          "-c",
+          "yellow",
+      },
+      clinok::errc::ok, "");
+  error_if(!o.many_x.args.empty());
+  o = test_parse1(
+      {
+          "program_name_placeholder",
+          "--many-x",
+          "a",
+          "-i",
+          "1",
+          "-c",
+          "yellow",
+      },
+      clinok::errc::ok, "");
+  std::vector<std::string> expected_strs{"a"};
+  error_if(expected_strs != o.many_x.args);
+
+  o = test_parse1(
+      {
+          "program_name_placeholder",
+          "--many-x",
+          "a",
+          "-i",
+          "1",
+          "-c",
+          "yellow",
+          "--many-x",
+          "bge",
+      },
+      clinok::errc::ok, "");
+  expected_strs.push_back("bge");
+  error_if(expected_strs != o.many_x.args);
+}
+
 int main() {
   test_resolve_aliases();
   test_validate_aliases();
   test_trim_ws();
   test_split_by_comma();
   test_levenshtein_distance();
+  test_parse_multiarg();
   test_parse1(
       {
           "program_name_placeholder",
