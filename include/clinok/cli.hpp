@@ -451,7 +451,7 @@ inline typename CLI::options parse(int argc, char* argv[], error_code& ec) noexc
   auto args = args_range(argc, argv);
   typename CLI::options o = parse<CLI>(args, ec);
   if (o.help) {
-    print_help_message_to<CLI>([](auto s) { std::cout << s; });
+    print_help_message_to<CLI>([](auto&& s) { std::cout << clinok::noexport::to_string_helper(s); });
     std::flush(std::cout);
     std::exit(0);
   } else if (ec) {
@@ -469,7 +469,7 @@ inline typename CLI::options parse(int argc, char* argv[], error_code& ec) noexc
       }
     }
     if (help_found) {
-      print_help_message_to<CLI>([](auto s) { std::cout << s; });
+      print_help_message_to<CLI>([](auto&& s) { std::cout << clinok::noexport::to_string_helper(s); });
       std::flush(std::cout);
       std::exit(EXIT_FAILURE);
     }
